@@ -8,13 +8,12 @@ export const generationService = {
     });
   },
 
-  generateImage: async (modelId, prompt, negativePrompt, parameters, inputMediaId) => {
+  generateImage: async (modelId, prompt, negativePrompt, parameters) => {
     return await api.post('/generation/generate', {
-      modelId,
+      model_id: modelId,
       prompt,
-      negativePrompt,
+      negative_prompt: negativePrompt,
       parameters,
-      inputMediaId,
     });
   },
 
