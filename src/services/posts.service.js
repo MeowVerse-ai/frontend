@@ -77,6 +77,18 @@ export const postsService = {
     return response.data;
   },
 
+  // Record a view
+  recordView: async (postId) => {
+    try {
+      const response = await api.post(`/posts/${postId}/view`);
+      return response.data;
+    } catch (err) {
+      // Swallow view errors to avoid breaking UX
+      console.warn('Failed to record view', err?.response?.data || err.message);
+      return null;
+    }
+  },
+
   // Get weekly rankings
   getWeeklyRankings: async (week = null) => {
     const url = week ? `/posts/rankings/weekly?week=${week}` : '/posts/rankings/weekly';

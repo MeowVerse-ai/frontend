@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Copy, Check, Mail, Twitter, MessageCircle, Instagram } from 'lucide-react';
+import { X, Copy, Check } from 'lucide-react';
 
 const ShareReferralModal = ({ referralCode, onClose }) => {
   const [copied, setCopied] = useState(false);
@@ -13,26 +13,23 @@ const ShareReferralModal = ({ referralCode, onClose }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleShareTwitter = () => {
-    const tweetText = encodeURIComponent(`Join me on MeowVerse! 🐱✨\n\nCreate amazing AI-generated cat content and get 50 bonus credits with code: ${referralCode}\n\n`);
-    window.open(`https://twitter.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(referralLink)}`, '_blank');
-  };
-
   const handleShareWhatsApp = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank');
   };
 
   const handleShareInstagram = () => {
-    // Instagram doesn't support direct URL sharing like Facebook
-    // Copy the link and open Instagram so users can paste it in their story/post
     navigator.clipboard.writeText(referralLink);
     window.open('https://www.instagram.com/', '_blank');
   };
 
-  const handleShareEmail = () => {
-    const subject = encodeURIComponent('Join me on MeowVerse!');
-    const body = encodeURIComponent(shareMessage);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  const handleShareWeChat = () => {
+    navigator.clipboard.writeText(shareMessage);
+    alert('已复制分享文案，前往微信粘贴给好友。');
+  };
+
+  const handleShareXHS = () => {
+    navigator.clipboard.writeText(shareMessage);
+    alert('已复制分享文案，前往小红书粘贴发布。');
   };
 
   return (
@@ -60,7 +57,7 @@ const ShareReferralModal = ({ referralCode, onClose }) => {
         <div className="mb-6">
           <label className="text-sm font-medium text-gray-300 mb-2 block">Your Referral Link</label>
           <div className="flex gap-2">
-            <div className="flex-1 bg-slate-800/50 rounded-xl px-4 py-3 border border-purple-500/30">
+            <div className="flex-1 bg-slate-800/60 rounded-xl px-4 py-3 border border-purple-500/20">
               <p className="text-white text-sm truncate">{referralLink}</p>
             </div>
             <button
@@ -87,35 +84,31 @@ const ShareReferralModal = ({ referralCode, onClose }) => {
           <label className="text-sm font-medium text-gray-300 mb-3 block">Share via</label>
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={handleShareTwitter}
-              className="flex items-center gap-3 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-blue-400/50"
-            >
-              <Twitter size={24} className="text-blue-400" />
-              <span className="text-white font-medium">Twitter</span>
-            </button>
-
-            <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-3 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-green-400/50"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-green-400/50 text-white font-medium"
             >
-              <MessageCircle size={24} className="text-green-400" />
-              <span className="text-white font-medium">WhatsApp</span>
+              WhatsApp
             </button>
 
             <button
               onClick={handleShareInstagram}
-              className="flex items-center gap-3 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-pink-500/50"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-pink-500/50 text-white font-medium"
             >
-              <Instagram size={24} className="text-pink-500" />
-              <span className="text-white font-medium">Instagram</span>
+              Instagram
             </button>
 
             <button
-              onClick={handleShareEmail}
-              className="flex items-center gap-3 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-purple-400/50"
+              onClick={handleShareWeChat}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-green-300/50 text-white font-medium"
             >
-              <Mail size={24} className="text-purple-400" />
-              <span className="text-white font-medium">Email</span>
+              微信
+            </button>
+
+            <button
+              onClick={handleShareXHS}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors border border-purple-500/30 hover:border-rose-400/50 text-white font-medium"
+            >
+              小红书
             </button>
           </div>
         </div>

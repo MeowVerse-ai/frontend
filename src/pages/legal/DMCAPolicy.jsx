@@ -6,7 +6,7 @@ const DMCAPolicy = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 md:p-12">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">DMCA Copyright Policy</h1>
-        <p className="text-sm text-gray-600 mb-8">Last Updated: November 11, 2025</p>
+        <p className="text-sm text-gray-600 mb-8">Last Updated: January 1, 2026</p>
 
         <div className="prose max-w-none space-y-6 text-gray-700">
           <section>
@@ -312,9 +312,9 @@ const DMCAPolicy = () => {
             <div className="bg-gray-50 p-6 rounded-lg mt-4">
               <p className="font-semibold text-lg text-gray-900 mb-4">Designated Copyright Agent</p>
 
-              <p><strong>Company:</strong> MeowVerse Ltd.</p>
-              <p className="mt-2"><strong>Registered in:</strong> Hong Kong SAR</p>
-              <p className="mt-2"><strong>Address:</strong> Room D3, 11/F, Luk Hop Industrial Building, 8 Luk Hop Street, San Po Kong, Kowloon</p>
+              <p>MeowVerse Ltd.</p>
+              <p className="mt-2">Rm D3, 11/F, Luk Hop Industrial Building, 8 Luk Hop Street, San Po Kong, Kowloon</p>
+              <p className="mt-2">Hong Kong SAR</p>
 
               <p className="mt-6"><strong>For DMCA Notices and Counter-Notices:</strong></p>
               <p className="mt-2">Email: dmca@meowverse.ai</p>

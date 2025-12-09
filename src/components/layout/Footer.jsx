@@ -6,7 +6,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center">
           <div className="text-5xl mb-4">🐾</div>
-          <p className="text-gray-400 mb-2">© 2025 MeowVerse Ltd. All rights reserved.</p>
+          <p className="text-gray-400 mb-2">© 2026 MeowVerse Ltd. All rights reserved.</p>
           <p className="text-gray-600 text-sm mb-3">Celebrate the magic of every meow</p>
 
           {/* Legal Links - Essential + EU Compliance */}

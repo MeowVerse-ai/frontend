@@ -4,8 +4,9 @@ import { generationService } from '../services/generation.service';
 import { creditsService } from '../services/credits.service';
 import Navbar from '../components/layout/Navbar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { Zap, Image as ImageIcon, Calendar, Gift, Crown, Heart } from 'lucide-react';
+import { Calendar, Gift, Crown, Trash2 } from 'lucide-react';
 import { formatDate } from '../utils/helpers';
+import api from '../services/api';
 
 const DashboardPage = () => {
   const { user, refreshUser } = useAuth();
@@ -14,13 +15,12 @@ const DashboardPage = () => {
   const [claiming, setClaiming] = useState(false);
   const [lastClaimed, setLastClaimed] = useState(null);
   const [canClaim, setCanClaim] = useState(false);
-  const [likesThisWeek, setLikesThisWeek] = useState(0);
+  const [deletingPostId, setDeletingPostId] = useState(null);
 
   useEffect(() => {
     loadHistory();
     refreshUser();
     checkDailyCredits();
-    loadLikesThisWeek();
   }, []);
 
   const checkDailyCredits = async () => {
@@ -47,27 +47,6 @@ const DashboardPage = () => {
     }
   };
 
-  const loadLikesThisWeek = async () => {
-    try {
-      // Calculate date from 7 days ago
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-
-      // Get user's posts from the last 7 days
-      const response = await generationService.getHistory(1, 50);
-      const recentJobs = response.data.jobs || [];
-
-      // Filter jobs from last week and sum their likes
-      const totalLikes = recentJobs
-        .filter(job => new Date(job.created_at) >= weekAgo)
-        .reduce((sum, job) => sum + (job.likes_count || 0), 0);
-
-      setLikesThisWeek(totalLikes);
-    } catch (error) {
-      console.error('Failed to load likes this week:', error);
-    }
-  };
-
   const handleClaimDaily = async () => {
     setClaiming(true);
     try {
@@ -86,35 +65,73 @@ const DashboardPage = () => {
     }
   };
 
-  const stats = [
-    {
-      icon: Zap,
-      label: 'Credits',
-      value: user?.credits || 0,
-      color: 'from-yellow-500 to-orange-500',
-    },
-    {
-      icon: ImageIcon,
-      label: 'Creations',
-      value: history.filter(h => h.status === 'completed').length,
-      color: 'from-pink-500 to-purple-500',
-    },
-    {
-      icon: Heart,
-      label: 'Likes This Week',
-      value: likesThisWeek,
-      color: 'from-pink-500 to-rose-500',
-    },
-  ];
+  const getDisplayStatus = (job) => {
+    if (job.moderation_status === 'deleted') return 'deleted';
+    if (job.status === 'failed') return 'failed';
+    if (job.visibility === 'public' && job.status === 'completed') return 'published';
+    if (job.status === 'completed') return 'completed';
+    if (job.status === 'processing' || job.status === 'pending') return 'in progress';
+    return job.status || 'unknown';
+  };
 
-  const getStatusColor = (status) => {
+  const stripSystemPrefix = (text = '') => {
+    const prefixes = [
+      'Continue with this picture. Keep the same main subject, style, lighting, and environment. Preserve the camera angle and color palette. Extend the scene naturally; do not introduce new characters or settings unless implied by the prompt.',
+    ];
+    let cleaned = text || '';
+    prefixes.forEach((p) => {
+      if (cleaned.startsWith(p)) {
+        cleaned = cleaned.slice(p.length).trimStart();
+      }
+    });
+    return cleaned;
+  };
+
+  const getStatusColor = (job) => {
+    const status = getDisplayStatus(job);
     switch (status) {
-      case 'completed': return 'text-green-400 bg-green-400/20';
-      case 'processing': return 'text-blue-400 bg-blue-400/20';
-      case 'pending': return 'text-yellow-400 bg-yellow-400/20';
-      case 'failed': return 'text-red-400 bg-red-400/20';
+      case 'published': return 'text-green-300 bg-green-400/20';
+      case 'completed': return 'text-emerald-300 bg-emerald-500/15';
+      case 'in progress': return 'text-blue-300 bg-blue-400/20';
+      case 'failed': return 'text-red-300 bg-red-400/20';
+      case 'deleted': return 'text-gray-300 bg-gray-500/20';
       default: return 'text-gray-400 bg-gray-400/20';
     }
+  };
+
+  const getStatusLabel = (job) => {
+    const status = getDisplayStatus(job);
+    switch (status) {
+      case 'published': return 'Published';
+      case 'completed': return 'Completed';
+      case 'in progress': return 'In progress';
+      case 'failed': return 'Failed';
+      case 'deleted': return 'Deleted';
+      default: return status;
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!postId) return;
+    const ok = window.confirm('Remove this from the gallery? This is allowed only before others join your relay.');
+    if (!ok) return;
+    try {
+      setDeletingPostId(postId);
+      await api.delete(`/posts/${postId}`);
+      await loadHistory();
+    } catch (err) {
+      console.error('Failed to remove post', err);
+      alert(err.response?.data?.error || 'Failed to remove this post.');
+    } finally {
+      setDeletingPostId(null);
+    }
+  };
+
+  const handleRemoveEntry = (jobId) => {
+    if (!jobId) return;
+    const ok = window.confirm('Remove this entry from your dashboard?');
+    if (!ok) return;
+    setHistory((prev) => prev.filter((job) => job.id !== jobId));
   };
 
   return (
@@ -128,20 +145,6 @@ const DashboardPage = () => {
             <h1 className="text-5xl font-black gradient-text mb-4 pb-2">
               Meow, {user?.username}!
             </h1>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {stats.map((stat, idx) => (
-              <div key={idx} className="relative group">
-                <div className={`absolute -inset-0.5 bg-gradient-to-r ${stat.color} rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-300`}></div>
-                <div className="relative glass-effect rounded-2xl p-8 border border-purple-500/20">
-                  <stat.icon className="w-12 h-12 text-pink-400 mb-4" />
-                  <p className="text-gray-400 text-sm mb-2">{stat.label}</p>
-                  <p className="text-4xl font-bold text-white">{stat.value}</p>
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* Daily Credits Claim Card (Creator Tier Only) */}
@@ -189,7 +192,7 @@ const DashboardPage = () => {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 rounded-3xl blur-xl opacity-50"></div>
             <div className="relative glass-effect rounded-3xl p-8 border border-purple-500/30">
-              <h2 className="text-3xl font-bold text-white mb-6">Recent Creations</h2>
+              <h2 className="text-3xl font-bold text-white mb-6">My Relay Runway</h2>
 
               {loading ? (
                 <div className="py-12">
@@ -210,15 +213,34 @@ const DashboardPage = () => {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(job.status)}`}>
-                              {job.status}
+                          <div className="flex items-center space-x-3 mb-2 flex-wrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(job)}`}>
+                              {getStatusLabel(job)}
                             </span>
+                            {job.visibility && (
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-purple-200">
+                                {job.visibility === 'public' ? 'Public' : 'Private'}
+                              </span>
+                            )}
+                            {job.moderation_status &&
+                              job.moderation_status !== 'approved' &&
+                              job.moderation_status !== 'deleted' && (
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500/15 text-red-200">
+                                {job.moderation_status}
+                              </span>
+                            )}
+                            {job.step_index || job.step_number ? (
+                              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-purple-200">
+                                Panel #{job.step_index || job.step_number}
+                              </span>
+                            ) : null}
                             <span className="text-sm text-gray-400">
                               {job.model_name}
                             </span>
                           </div>
-                          <p className="text-white mb-2 line-clamp-2">{job.prompt}</p>
+                          <p className="text-white mb-2 line-clamp-2">
+                            {job.prompt_user || stripSystemPrefix(job.prompt)}
+                          </p>
                           <div className="flex items-center space-x-4 text-sm text-gray-500">
                             <span className="flex items-center">
                               <Calendar size={14} className="mr-1" />
@@ -234,6 +256,25 @@ const DashboardPage = () => {
                             className="w-24 h-24 rounded-lg object-cover ml-4"
                           />
                         )}
+                        {job.post_id && job.visibility === 'public' && job.moderation_status !== 'deleted' ? (
+                          <button
+                            onClick={() => handleDeletePost(job.post_id)}
+                            disabled={deletingPostId === job.post_id}
+                            className="ml-4 flex items-center gap-1 px-3 py-2 rounded-lg bg-white/10 text-red-200 hover:bg-red-500/20 transition text-sm"
+                          >
+                            <Trash2 size={14} />
+                            {deletingPostId === job.post_id ? 'Removing...' : 'Delete'}
+                          </button>
+                        ) : null}
+                        {(!job.post_id || job.moderation_status === 'deleted' || job.status === 'failed') ? (
+                          <button
+                            onClick={() => handleRemoveEntry(job.id)}
+                            className="ml-4 flex items-center gap-1 px-3 py-2 rounded-lg bg-white/10 text-red-200 hover:bg-red-500/20 transition text-sm"
+                          >
+                            <Trash2 size={14} />
+                            Remove
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   ))}

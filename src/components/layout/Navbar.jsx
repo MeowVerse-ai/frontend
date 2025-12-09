@@ -16,13 +16,13 @@ const Navbar = () => {
     setMobileMenuOpen(false);
   };
 
-  const handleMeowMomentsClick = () => {
+  const handleMeowMentsClick = () => {
     setMobileMenuOpen(false);
     if (window.location.pathname === '/') {
-      const section = document.getElementById('meowmoments-section');
+      const section = document.getElementById('meowments-section');
       section?.scrollIntoView({ behavior: 'smooth' });
     } else {
-      navigate('/', { state: { scrollTo: 'meowmoments' } });
+      navigate('/', { state: { scrollTo: 'meowments' } });
     }
   };
 
@@ -40,19 +40,12 @@ const Navbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
             <button
-              onClick={handleMeowMomentsClick}
+              onClick={handleMeowMentsClick}
               className="px-4 py-1.5 rounded-full font-bold transition-all bg-gradient-to-r from-teal-500/80 to-violet-500/90 text-white shadow-lg hover:scale-105"
             >
               <PawPrint className="inline-block mr-2" size={18} />
-              MeowMoments
+              MeowMents
             </button>
-            <Link
-              to="/studio"
-              className="px-4 py-1.5 rounded-full font-bold transition-all bg-gradient-to-r from-pink-600/80 to-purple-600/90 text-white shadow-lg hover:scale-105"
-            >
-              <WandSparkles className="inline-block mr-2" size={18} />
-              MeowStudio
-            </Link>
             <Link
               to="/stars"
               className="px-4 py-1.5 rounded-full font-bold transition-all bg-gradient-to-r from-yellow-600/80 to-orange-600/90 text-white shadow-lg hover:scale-105"
@@ -90,14 +83,6 @@ const Navbar = () => {
                     >
                       <User size={18} />
                       <span>Dashboard</span>
-                    </Link>
-                    <Link
-                      to="/my-studio"
-                      className="block px-4 py-3 hover:bg-slate-700 transition-colors flex items-center space-x-2"
-                      onClick={() => setShowDropdown(false)}
-                    >
-                      <Image size={18} />
-                      <span>My Studio</span>
                     </Link>
                     <Link
                       to="/referrals"
@@ -171,20 +156,12 @@ const Navbar = () => {
                 </div>
 
                 <button
-                  onClick={handleMeowMomentsClick}
+                  onClick={handleMeowMentsClick}
                   className="w-full text-left px-4 py-3 rounded-lg bg-gradient-to-r from-teal-500/20 to-violet-500/20 hover:from-teal-500/30 hover:to-violet-500/30 transition-colors flex items-center space-x-3"
                 >
                   <PawPrint size={20} />
-                  <span className="font-semibold">MeowMoments</span>
+                  <span className="font-semibold">MeowMents</span>
                 </button>
-                <Link
-                  to="/studio"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-3 rounded-lg bg-gradient-to-r from-pink-600/20 to-purple-600/20 hover:from-pink-600/30 hover:to-purple-600/30 transition-colors flex items-center space-x-3"
-                >
-                  <WandSparkles size={20} />
-                  <span className="font-semibold">MeowStudio</span>
-                </Link>
                 <Link
                   to="/stars"
                   onClick={() => setMobileMenuOpen(false)}
@@ -209,14 +186,6 @@ const Navbar = () => {
                 >
                   <User size={20} />
                   <span className="font-semibold">Dashboard</span>
-                </Link>
-                <Link
-                  to="/my-studio"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-3 rounded-lg hover:bg-slate-800/50 transition-colors flex items-center space-x-3"
-                >
-                  <Image size={20} />
-                  <span className="font-semibold">My Studio</span>
                 </Link>
                 <Link
                   to="/referrals"
@@ -253,11 +222,11 @@ const Navbar = () => {
             ) : (
               <>
                 <button
-                  onClick={handleMeowMomentsClick}
+                  onClick={handleMeowMentsClick}
                   className="w-full text-left px-4 py-3 rounded-lg bg-gradient-to-r from-teal-500/20 to-violet-500/20 hover:from-teal-500/30 hover:to-violet-500/30 transition-colors flex items-center space-x-3"
                 >
                   <PawPrint size={20} />
-                  <span className="font-semibold">MeowMoments</span>
+                  <span className="font-semibold">MeowMents</span>
                 </button>
                 <Link
                   to="/studio"

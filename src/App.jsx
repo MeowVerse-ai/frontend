@@ -9,9 +9,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AboutPage from './pages/AboutPage';
 import DashboardPage from './pages/DashboardPage';
-import StudioPage from './pages/StudioPage';
+import RelayPage from './pages/RelayPage';
 import MeowStarsPage from './pages/MeowStarsPage';
-import MyStudioPage from './pages/MyStudioPage';
 import PostDetailPage from './pages/PostDetailPage';
 import PricingPage from './pages/PricingPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
@@ -85,9 +84,17 @@ const Layout = ({ children }) => {
   );
 };
 
+const GoogleProviderWrapper = ({ children }) => {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return children;
+  }
+  return <GoogleOAuthProvider clientId={clientId}>{children}</GoogleOAuthProvider>;
+};
+
 function App() {
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <GoogleProviderWrapper>
       <AuthProvider>
         <BrowserRouter>
           <ScrollToTop />
@@ -137,15 +144,6 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* My Studio Page - Protected */}
-          <Route path="/my-studio" element={
-            <ProtectedRoute>
-              <Layout>
-                <MyStudioPage />
-              </Layout>
-            </ProtectedRoute>
-          } />
-
           {/* Ranking Page - Public */}
           <Route path="/stars" element={
             <Layout>
@@ -156,7 +154,7 @@ function App() {
           {/* Studio Page - Public */}
           <Route path="/studio" element={
             <Layout>
-              <StudioPage />
+              <RelayPage />
             </Layout>
           } />
 
@@ -249,7 +247,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
-    </GoogleOAuthProvider>
+    </GoogleProviderWrapper>
   );
 }
 

@@ -2,16 +2,37 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { paymentService } from '../services/payment.service';
 
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [countdown, setCountdown] = useState(5);
+  const [statusMsg, setStatusMsg] = useState('');
 
   useEffect(() => {
-    // Refresh user data to get updated credits
-    refreshUser();
+    const sessionId = searchParams.get('session_id');
+
+    const finalize = async () => {
+      if (sessionId) {
+        try {
+          setStatusMsg('Finalizing your purchase...');
+          await paymentService.finalizeSession(sessionId);
+          await refreshUser();
+          setStatusMsg('Credits updated!');
+        } catch (err) {
+          console.error('Finalize payment failed', err);
+          setStatusMsg('Payment recorded. If credits do not appear, please contact support.');
+          await refreshUser();
+        }
+      } else {
+        // Fallback: just refresh
+        refreshUser();
+      }
+    };
+
+    finalize();
 
     // Countdown redirect
     const timer = setInterval(() => {
@@ -49,6 +70,7 @@ const PaymentSuccessPage = () => {
             <p className="text-gray-300 mb-8">
               Your credits have been added to your account.
             </p>
+            {statusMsg && <p className="text-sm text-gray-400 mb-4">{statusMsg}</p>}
 
             {/* Redirect Info */}
             <p className="text-sm text-gray-400 mb-6">

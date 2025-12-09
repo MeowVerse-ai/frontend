@@ -1,357 +1,545 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Eye, Sparkles, Camera, Zap, Clock, TrendingUp, Star } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { postsService } from '../services/posts.service';
+import { relayService } from '../services/relay.service';
+import { uploadService } from '../services/upload.service';
+import { formatDate, formatNumber } from '../utils/helpers';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { formatNumber, formatDate } from '../utils/helpers';
-import { useLocation } from 'react-router-dom';
+import { Wand2, Image as ImageIcon } from 'lucide-react';
+import { generationService } from '../services/generation.service';
+
+const TABS = [
+  { key: 'popular', label: 'Popular' },
+  { key: 'latest', label: 'Latest' },
+];
 
 const HomePage = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('popular');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('latest');
-  const location = useLocation();
-
-	useEffect(() => {
-    // Check if we need to scroll to MeowMoments
-    if (location.state?.scrollTo === 'meowmoments') {
-        setTimeout(() => {
-        const section = document.getElementById('meowmoments-section');
-        section?.scrollIntoView({ behavior: 'smooth' });
-        }, 100); // Small delay to ensure page is loaded
-    }
-	}, [location]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [prompt, setPrompt] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [inputMediaId, setInputMediaId] = useState(null);
+  const [creatingDraft, setCreatingDraft] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
+  const [latestResult, setLatestResult] = useState(null);
+  const pollRef = useRef(null);
+  const [activeDraft, setActiveDraft] = useState(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const observerRef = useRef(null);
+  const [liftFloating, setLiftFloating] = useState(false);
+  const floatingRef = useRef(null);
+  const [floatingHeight, setFloatingHeight] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [activeRelay, setActiveRelay] = useState(null);
 
   useEffect(() => {
-    loadPosts();
-  }, [activeFilter]);
+    loadPosts(true);
+  }, [activeTab]);
 
-  const loadPosts = async () => {
+  const loadPosts = async (reset = false) => {
     setLoading(true);
     try {
+      const targetPage = reset ? 1 : page;
+      const limit = 12;
       let response;
 
-      // Call appropriate API based on active filter
-      switch (activeFilter) {
-        case 'trending':
-          response = await postsService.getPopular(1, 12);
-          break;
-        case 'popular':
-          response = await postsService.getPopular(1, 12);
-          break;
-        case 'latest':
-        default:
-          response = await postsService.getLatest(1, 12);
-          break;
+      if (activeTab === 'popular') {
+        response = await postsService.getPopular(targetPage, limit);
+      } else {
+        response = await postsService.getLatest(targetPage, limit);
       }
 
-      console.log('API Response:', response); // Debug log
+      const data =
+        response?.data?.posts ||
+        response?.posts ||
+        response?.data ||
+        [];
+      const mock = [
+        {
+          id: 'mock1',
+          title: 'Mock Relay 1',
+          description: 'Single panel preview',
+          relay_session_id: 'session-mock1',
+          steps: [
+            { thumbnail_url: 'https://picsum.photos/seed/a/600/800', media_id: 'media-mock1-step1' },
+          ],
+          max_steps: 6,
+          likes_count: 12,
+          comments_count: 3,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock3',
+          title: 'Mock Relay 3',
+          description: 'Three panels preview',
+          relay_session_id: 'session-mock3',
+          steps: [
+            { thumbnail_url: 'https://picsum.photos/seed/b/600/800', media_id: 'media-mock3-step1' },
+            { thumbnail_url: 'https://picsum.photos/seed/c/600/800', media_id: 'media-mock3-step2' },
+            { thumbnail_url: 'https://picsum.photos/seed/d/600/800', media_id: 'media-mock3-step3' },
+          ],
+          max_steps: 6,
+          likes_count: 45,
+          comments_count: 10,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock6',
+          title: 'Mock Relay Full',
+          description: 'Six panels preview',
+          relay_session_id: 'session-mock6',
+          steps: Array.from({ length: 6 }, (_, i) => ({
+            thumbnail_url: `https://picsum.photos/seed/${i + 10}/600/800`,
+            media_id: `media-mock6-step${i + 1}`,
+          })),
+          max_steps: 6,
+          likes_count: 100,
+          comments_count: 25,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock4',
+          title: 'Mock Relay 4',
+          description: 'Four panels preview',
+          relay_session_id: 'session-mock4',
+          steps: Array.from({ length: 4 }, (_, i) => ({
+            thumbnail_url: `https://picsum.photos/seed/${20 + i}/600/800`,
+            media_id: `media-mock4-step${i + 1}`,
+          })),
+          max_steps: 6,
+          likes_count: 64,
+          comments_count: 14,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock5',
+          title: 'Mock Relay 5',
+          description: 'Five panels preview',
+          relay_session_id: 'session-mock5',
+          steps: Array.from({ length: 5 }, (_, i) => ({
+            thumbnail_url: `https://picsum.photos/seed/${30 + i}/600/800`,
+            media_id: `media-mock5-step${i + 1}`,
+          })),
+          max_steps: 6,
+          likes_count: 82,
+          comments_count: 19,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'mock2',
+          title: 'Mock Relay 2',
+          description: 'Two panels preview',
+          relay_session_id: 'session-mock2',
+          steps: Array.from({ length: 2 }, (_, i) => ({
+            thumbnail_url: `https://picsum.photos/seed/${40 + i}/600/800`,
+            media_id: `media-mock2-step${i + 1}`,
+          })),
+          max_steps: 6,
+          likes_count: 28,
+          comments_count: 7,
+          created_at: new Date().toISOString(),
+        },
+      ];
 
-      // Handle different response structures
-      const postsData = response?.data?.posts || response?.posts || [];
-      setPosts(postsData);
+      if (reset) {
+        const filled = data.length ? data : mock;
+        setPosts(filled);
+        setPage(2);
+      } else {
+        setPosts((prev) => [...prev, ...data]);
+        setPage(targetPage + 1);
+      }
+      setHasMore(data.length === limit);
     } catch (error) {
       console.error('Failed to load posts:', error);
-      setPosts([]);
+      if (reset) setPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGenerateMeowment = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      navigate('/studio');
-    }, 800);
+  const handleLoadMore = () => {
+    if (!hasMore || loading) return;
+    loadPosts(false);
   };
 
-  const handleLike = async (postId, e) => {
-    e.stopPropagation();
+  useEffect(() => {
+    const sentinel = observerRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasMore && !loading) {
+          loadPosts(false);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, activeTab, page]);
+
+  useEffect(() => {
+    const footerEl = document.querySelector('footer');
+    if (!footerEl) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        setLiftFloating(first.isIntersecting);
+      },
+      { rootMargin: '0px' }
+    );
+    observer.observe(footerEl);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (floatingRef.current) {
+      setFloatingHeight(floatingRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!isExpanded) return;
+      if (!floatingRef.current) return;
+      if (!floatingRef.current.contains(e.target) && !prompt.trim()) {
+        setIsExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExpanded, prompt]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const resolveUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `http://localhost:3000${url}`;
+  };
+
+  const startJobPolling = (jobId) => {
+    if (!jobId) return;
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    setIsGenerating(true);
+    setGenError('');
+    setLatestResult({ status: 'pending', title: 'Generating preview...' });
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await generationService.getJobStatus(jobId);
+        const job = res.data?.job;
+        if (!job) return;
+        if (job.status === 'failed') {
+          setGenError(job.error_message || 'Generation failed, please try again.');
+          setIsGenerating(false);
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        if (job.status === 'completed' && job.result_url) {
+          setLatestResult({
+            status: 'done',
+            title: job.prompt,
+            image: job.result_url,
+            mediaId: job.result_media_id,
+          });
+          setIsGenerating(false);
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          // refresh list to surface new post after publish
+        }
+      } catch (err) {
+        console.error('Poll job failed', err);
+      }
+    }, 2500);
+  };
+
+  const handlePublishGenerated = async () => {
+    if (!activeDraft?.sessionId || !activeDraft?.draftId) {
+      setIsExpanded(false);
+      return;
+    }
+    setIsPublishing(true);
     try {
-      await postsService.likePost(postId);
-      loadPosts();
+      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {});
+      await loadPosts(true);
+      setIsExpanded(false);
+      setLatestResult(null);
+      setActiveDraft(null);
+    } catch (err) {
+      console.error('Publish failed', err);
+      alert(err.response?.data?.error || 'Failed to publish this image, please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image too large (max 10MB).');
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploadResult = await uploadService.uploadFile(file);
+      setInputMediaId(uploadResult.mediaId || uploadResult.id);
     } catch (error) {
-      console.error('Failed to like post:', error);
+      console.error('Upload failed', error);
+      alert('Upload failed, please retry.');
+      setInputMediaId(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateDraft = async () => {
+    if (!prompt.trim()) {
+      alert('Please enter a prompt');
+      return;
+    }
+    if (!user) {
+      navigate('/register');
+      return;
+    }
+    setCreatingDraft(true);
+    setIsGenerating(true);
+    setGenError('');
+    setLatestResult(null);
+    setActiveDraft(null);
+    try {
+      const sessionRes = await relayService.createSession();
+      const sessionId = sessionRes.data.data.id;
+      const draftRes = await relayService.createDraft(sessionId, {
+        prompt,
+        input_media_id: inputMediaId || undefined,
+      });
+      const jobId = draftRes.data?.data?.job?.id;
+      const draftId = draftRes.data?.data?.draft?.id;
+      setActiveDraft({ sessionId, draftId, jobId });
+      startJobPolling(jobId);
+      setPrompt('');
+      setInputMediaId(null);
+    } catch (error) {
+      console.error('Failed to create draft', error);
+      setGenError(error.response?.data?.error || 'Generation failed, please try again.');
+      setIsExpanded(true);
+    } finally {
+      setCreatingDraft(false);
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Original Hero Section */}
-      <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden pt-16 pb-4">
-        {/* Animated background blobs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-blob"></div>
-          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
-        </div>
-
-        {/* Hero Content */}
-        <div className="relative z-10 max-w-6xl mx-auto text-center">
-          {/* Title */}
-          <div className="mb-10">
-            <div className="flex justify-center mb-6">
-            </div>
-            <h1 className="text-5xl sm:text-8xl font-black mb-6 leading-tight">
-              <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
-                Capture Your
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-blue-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-                Meowments
-              </span>
-            </h1>
-            <p className="text-lg sm:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-              Transform ordinary moments into extraordinary memories ✨
-            </p>
-          </div>
-
-          {/* CTA Card */}
-          <div className="max-w-2xl mx-auto mb-8 sm:mb-6">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-pink-600/10 via-purple-600/30 to-blue-600/10 rounded-3xl blur-xl opacity-75 group-hover:opacity-100 transition duration-500"></div>
-              <div className="relative bg-gradient-to-br from-pink-800/30 to-purple-800/50 backdrop-blur-xl rounded-3xl pt-8 pb-6 px-6 sm:pt-12 sm:pb-10 sm:px-10 border border-purple-500/30">
-                <div className="flex flex-col items-center">
-                  <div className="text-6xl sm:text-6xl mb-4 animate-float">🐾</div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">
-                    Ready to create magic?
-                  </h2>
-                  
-                  {/* Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                    <button
-                      onClick={handleGenerateMeowment}
-                      disabled={generating}
-                      className="group/btn relative inline-flex items-center justify-center space-x-2 px-6 sm:px-6 py-3 sm:py-3 rounded-2xl text-lg sm:text-lg font-bold overflow-hidden transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-pink-600/50 via-purple-600/50 to-blue-600/50"></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 opacity-0 group-hover/btn:opacity-100 transition-opacity"></div>
-                      <div className="relative flex items-center space-x-3 text-white">
-                        {generating ? (
-                          <>
-                            <Sparkles className="animate-spin" size={28} />
-                            <span>Creating Magic...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Camera size={26} />
-                            <span>Make Meowments</span>
-                          </>
-                        )}
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const section = document.getElementById('meowmoments-section');
-                        section?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="group/discover relative inline-flex items-center justify-center space-x-2 px-6 sm:px-6 py-3 sm:py-3 rounded-2xl text-lg sm:text-lg font-bold overflow-hidden transition-all hover:scale-105"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/50 via-pink-600/50 to-blue-600/50"></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 opacity-0 group-hover/discover:opacity-100 transition-opacity"></div>
-                      <div className="relative flex items-center space-x-3 text-white">
-                        <Eye size={26} />
-                        <span>Discover Meowments</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Feature Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-2xl mx-auto">
-            {[
-              { 
-                icon: Heart, 
-                title: 'Eternal Meowments', 
-                desc: 'Turn your cherished moments into eternal meowments', 
-                color: 'from-pink-500 to-rose-500' 
-              },
-              { 
-                icon: Zap, 
-                title: 'Share and Purr', 
-                desc: 'Share your meowments with the community and purr for others', 
-                color: 'from-purple-500 to-violet-500' 
-              }
-            ].map((feature, idx) => (
-              <div key={idx} className="group relative">
-                <div className={`absolute -inset-0.5 bg-gradient-to-r ${feature.color} rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-300`}></div>
-                <div className="relative bg-slate-900/40 backdrop-blur-xl rounded-2xl p-5 border border-purple-500/30 group-hover:border-purple-500/40 transition-colors">
-                  <div className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${feature.color} mb-4`}>
-                    <feature.icon className="text-white" size={28} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
-                  <p className="text-gray-400">{feature.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 relative overflow-hidden">
+      {/* Ambient blobs */}
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="absolute -top-10 -left-10 w-96 h-96 bg-pink-500/30 blur-3xl rounded-full" />
+        <div className="absolute top-20 right-0 w-96 h-96 bg-purple-500/30 blur-3xl rounded-full" />
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-blue-500/20 blur-3xl rounded-full" />
       </div>
 
-      {/* MeowMoments Section */}
-      <div id="meowmoments-section" className="relative pt-24 pb-20 px-4">
-        {/* Section Header */}
-        <div className="max-w-7xl mx-auto mb-8 text-center">
-          <h2 className="text-4xl md:text-6xl font-black mb-4">
-            <span className="bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-              MeowMoments
-            </span>
-          </h2>
-          <p className="text-gray-400 text-lg">
-            Discover magical creations from our community 🎨
-          </p>
+      <main className="flex-1">
+        {/* Compact hero */}
+        <div className="relative max-w-6xl mx-auto px-4 pt-16 pb-6">
+          <div className="flex flex-col gap-3 items-center text-center">
+            <div className="text-sm uppercase tracking-widest text-purple-100/80">MeowVerse Relay</div>
+            <h1 className="text-5xl sm:text-6xl font-black leading-tight">
+              <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+                MeowMents
+              </span>
+            </h1>
+            <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+              Dive into the greatest relays
+            </p>
+          </div>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="max-w-7xl mx-auto mb-8">
-          <div className="flex justify-center">
-            <div className="inline-flex bg-slate-800/10 backdrop-blur-xl font-normal rounded-2xl p-2 border border-purple-500/20">
-              {[
-                { id: 'latest', label: 'Latest', icon: Clock },
-                { id: 'trending', label: 'Trending', icon: TrendingUp },
-                { id: 'popular', label: 'Popular', icon: Star }
-              ].map((filter) => {
-                const Icon = filter.icon;
-                const isActive = activeFilter === filter.id;
-
-                return (
-                  <button
-                    key={filter.id}
-                    onClick={() => setActiveFilter(filter.id)}
-                    className={`
-                      relative px-4 py-2 rounded-xl text-xsl transition-all duration-300
-                      flex items-center space-x-2
-                      ${isActive
-                        ? 'bg-gradient-to-r from-pink-600/30 via-purple-600/30 to-blue-600/30 text-white/90 shadow-lg shadow-purple-500/50'
-                        : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
-                      }
-                    `}
-                  >
-                    <Icon size={16} className={isActive ? 'animate-pulse' : ''} />
-                    <span>{filter.label}</span>
-                  </button>
-                );
-              })}
+        {/* Tabs as sliding toggle */}
+        <div className="relative max-w-6xl mx-auto px-4 pb-8">
+          <div className="flex items-center justify-center mb-6">
+            <div className="relative flex bg-white/10 border border-white/20 rounded-full p-1 shadow-lg backdrop-blur overflow-hidden">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`relative z-10 px-5 py-2 rounded-full font-semibold transition-colors ${
+                    activeTab === tab.key ? 'text-slate-900' : 'text-white/80'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              <div
+                className="absolute top-[3px] bottom-[3px] rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 transition-all duration-200 shadow-md"
+                style={{
+                  width: 'calc(50% - 6px)',
+                  left: activeTab === 'popular' ? '3px' : 'calc(50% + 3px)',
+                }}
+              />
             </div>
           </div>
         </div>
 
-        {/* Posts Grid */}
-        <div className="max-w-7xl mx-auto">
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <LoadingSpinner size="lg" text="Loading meowments..." />
+        {/* Gallery */}
+        <div className="relative max-w-6xl mx-auto px-4">
+          {loading && posts.length === 0 ? (
+            <div className="flex justify-center py-16">
+              <LoadingSpinner text="Loading gallery..." />
             </div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-7xl mb-6">😿</div>
-              <p className="text-2xl text-gray-400 mb-4">No meowments yet</p>
-              <p className="text-gray-500 mb-8">Be the first to create something amazing!</p>
-              <button
-                onClick={() => navigate('/studio')}
-                className="px-8 py-3 bg-gradient-to-r from-pink-600 to-purple-600 text-white rounded-full font-semibold hover:scale-105 transition-transform"
-              >
-                Create First Meowment
-              </button>
-            </div>
+            <div className="text-center text-gray-400 py-16">No posts yet.</div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 justify-items-center">
               {posts.map((post) => (
                 <div
                   key={post.id}
-                  className="group relative cursor-pointer"
-                  onClick={() => navigate(`/post/${post.id}`)}
+                  className="group relative w-full max-w-[360px] min-w-[220px] overflow-hidden rounded-2xl bg-white/5 border border-white/10 hover:border-purple-400/60 hover:shadow-xl hover:shadow-purple-500/20 transition cursor-pointer backdrop-blur-xl"
+                  onClick={() => {
+                    const stepsArr = post.steps || post.relay_steps || [];
+                    const lastStep = stepsArr[stepsArr.length - 1];
+                    setActiveRelay(
+                      stepsArr.length
+                        ? {
+                            sessionId: post.relay_session_id || post.session_id || 'mock-session',
+                            lastStep,
+                            stepIndex: stepsArr.length,
+                          }
+                        : null
+                    );
+                    navigate(`/post/${post.id}`);
+                  }}
                 >
-                  {/* Glow effect on hover */}
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl blur opacity-0 group-hover:opacity-75 transition duration-300"></div>
-                  
-                  {/* Card */}
-                  <div className="relative bg-slate-800/50 backdrop-blur-xl rounded-2xl overflow-hidden border border-purple-500/20 group-hover:border-purple-500/50 transition-all">
-                    {/* Image and Video*/}
-                    <div className="aspect-square relative overflow-hidden bg-slate-900">
-                      {post.original_url?.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video
-                          src={`http://localhost:3000${post.original_url}`}
-                          className="w-full h-full object-cover"
-                          loop
-                          autoPlay
-                          muted
-                          playsInline
-                          onError={(e) => {
-                            console.error('❌ Video failed to load!');
-                            console.error('Attempted URL:', e.target.src);
-                            console.error('Post data:', post);
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={`http://localhost:3000${post.original_url || post.thumbnail_url}`}
-                          alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            console.error('❌ Image failed to load!');
-                            console.error('Attempted URL:', e.target.src);
-                            console.error('Post data:', post);
-                            if (!e.target.src.includes('placeholder')) {
-                              e.target.src = 'https://via.placeholder.com/400x400/1e293b/8b5cf6?text=🐱';
-                            }
-                          }}
-                        />
-                      )}
-                      
-                      {/* Overlay with title on hover */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <h3 className="text-white font-bold text-lg line-clamp-2">
-                            {post.title}
-                          </h3>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="aspect-[4/5] w-full overflow-hidden relative">
+                    {(() => {
+                      const steps = post.steps || post.relay_steps || [];
+                      const apiThumbs = Array.isArray(post.step_thumbs) ? post.step_thumbs.filter(Boolean) : [];
+                      const apiUrls = Array.isArray(post.step_urls) ? post.step_urls.filter(Boolean) : [];
 
-                    {/* Post Info */}
-                    <div className="p-4">
-                      {/* User info */}
-                      <div className="flex items-center space-x-2 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                          {post.username?.charAt(0).toUpperCase() || '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-300 truncate">
-                            @{post.username}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatDate(post.created_at)}
-                          </p>
-                        </div>
-                      </div>
+                      let sourceImages = [];
+                      if (apiThumbs.length > 0) {
+                        sourceImages = apiThumbs;
+                      } else if (apiUrls.length > 0) {
+                        sourceImages = apiUrls;
+                      } else {
+                        sourceImages = steps.map(
+                          (s) =>
+                            s?.thumbnail_url ||
+                            s?.media_url ||
+                            s?.url ||
+                            s?.original_url ||
+                            post.thumbnail_url ||
+                            post.original_url
+                        );
+                      }
 
-                      {/* Stats */}
-                      <div className="flex items-center justify-between text-sm text-gray-400">
-                        <button
-                          onClick={(e) => handleLike(post.id, e)}
-                          className={`flex items-center space-x-1 hover:text-pink-400 transition-colors ${
-                            post.is_liked ? 'text-pink-400' : ''
+                      const baseImages = sourceImages
+                        .map(resolveUrl)
+                        .filter(Boolean)
+                        .slice(0, 6);
+                      const fallback = resolveUrl(post.thumbnail_url || post.original_url);
+                      const stepTotal =
+                        post.step_count ??
+                        post.steps_count ??
+                        (post.step_thumbs?.length || steps.length || coverImages.length);
+
+                      const coverImages = [...baseImages];
+
+                      if (coverImages.length === 0 && fallback) {
+                        coverImages.push(fallback);
+                      }
+
+                      // pad missing images up to reported stepTotal using fallback/first image
+                      const padSrc = coverImages[0] || fallback;
+                      while (coverImages.length < Math.min(Math.max(stepTotal, coverImages.length), 6)) {
+                        if (!padSrc) break;
+                        coverImages.push(padSrc);
+                      }
+
+                      if (stepTotal <= 1) {
+                        return (
+                          <img
+                            src={coverImages[0]}
+                            alt={post.title || 'Relay'}
+                            className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        );
+                      }
+
+                      let gridCols = 2;
+                      let gridRows = 2;
+                      let expected = 4;
+
+                      if (stepTotal >= 4) {
+                        gridCols = 3;
+                        gridRows = 2;
+                        expected = 6;
+                      }
+
+                      const tiles = [...coverImages];
+                      while (tiles.length < expected) {
+                        tiles.push(null);
+                      }
+
+                      return (
+                        <div
+                          className={`grid h-full w-full gap-1 bg-slate-900/40 ${
+                            gridCols === 2 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-3 grid-rows-2'
                           }`}
                         >
-                          <Heart size={16} fill={post.is_liked ? 'currentColor' : 'none'} />
-                          <span>{formatNumber(post.likes_count || 0)}</span>
-                        </button>
-                        <div className="flex items-center space-x-1">
-                          <MessageCircle size={16} />
-                          <span>{formatNumber(post.comments_count || 0)}</span>
+                          {tiles.map((src, idx) =>
+                            src ? (
+                              <img
+                                key={idx}
+                                src={src}
+                                alt={`Relay part ${idx + 1}`}
+                                className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div
+                                key={idx}
+                                className="w-full h-full bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-blue-500/20 flex items-center justify-center text-6xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400"
+                              >
+                                🐾
+                              </div>
+                            )
+                          )}
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Eye size={16} />
-                          <span>{formatNumber(post.views_count || 0)}</span>
-                        </div>
+                      );
+                    })()}
+                    <div className="absolute top-2 right-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-black/60 text-white border border-white/20 shadow">
+                        {(
+                          post.step_count ??
+                          post.steps_count ??
+                          (post.step_thumbs?.length || (post.steps || post.relay_steps || []).length || 1)
+                        )}/{post.max_steps || 6}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {/* Title removed; only description if present */}
+                    {post.description && (
+                      <p className="text-sm text-gray-200/80 line-clamp-2">{post.description}</p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-300/80">
+                      <span>{formatDate(post.created_at)}</span>
+                      <div className="flex items-center gap-3">
+                        <span>❤️ {formatNumber(post.likes_count || 0)}</span>
                       </div>
                     </div>
                   </div>
@@ -359,19 +547,136 @@ const HomePage = () => {
               ))}
             </div>
           )}
+
+          {hasMore && <div ref={observerRef} className="h-10" />}
         </div>
 
-        {/* Load More Button */}
-        {!loading && posts.length > 0 && (
-          <div className="text-center mt-12">
-            <button
-              onClick={loadPosts}
-              className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-full font-semibold transition-colors border border-purple-500/30 hover:border-purple-500/50"
-            >
-              Load More Meowments
-            </button>
-          </div>
-        )}
+        <div className="h-32"></div>
+      </main>
+
+      {/* Floating generator fixed above footer */}
+      <div
+        className="fixed left-1/2 -translate-x-1/2 w-full px-4 z-40 pointer-events-none"
+        style={{ bottom: liftFloating ? `${floatingHeight + 160}px` : '32px' }}
+      >
+        <div
+          ref={floatingRef}
+          className={`relative w-full max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-purple-900/70 via-slate-900/70 to-pink-900/70 backdrop-blur-2xl border border-white/15 shadow-[0_20px_60px_-25px_rgba(168,85,247,0.7)] pointer-events-auto transition-all duration-200 ease-out origin-center overflow-hidden transform ${
+            isExpanded
+              ? `p-5 ${latestResult?.image ? 'min-h-[320px]' : 'h-[150px]'} scale-100`
+              : 'p-3 h-[68px] scale-95'
+          }`}
+          onClick={() => setIsExpanded(true)}
+        >
+          {isExpanded ? (
+            <>
+              {/* Inline generation result/preview */}
+              {latestResult && (
+                <div className="mb-3 rounded-2xl bg-black/30 border border-white/10 p-3">
+                  {latestResult.status === 'pending' ? (
+                    <div className="flex flex-col items-center justify-center py-6 gap-3">
+                      <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      <p className="text-white/80 font-semibold">Generating...</p>
+                    </div>
+                  ) : (
+                    <>
+                      {latestResult.title && (
+                        <p className="text-white font-semibold text-base">{latestResult.title}</p>
+                      )}
+                    </>
+                  )}
+                  {latestResult.image && (
+                    <img
+                      src={latestResult.image}
+                      alt="Preview"
+                      className="mt-2 w-full rounded-xl object-contain max-h-96"
+                    />
+                  )}
+                  {genError && <p className="text-sm text-red-200 mt-1">{genError}</p>}
+                  {latestResult.status === 'done' && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+                        onClick={handlePublishGenerated}
+                        disabled={isPublishing}
+                      >
+                        {isPublishing ? 'Publishing...' : 'Start the rally with this image'}
+                      </button>
+                      <button
+                        className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+                        onClick={() => setLatestResult(null)}
+                      >
+                        Generate another with this prompt
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {activeRelay && activeRelay.lastStep ? (
+                <div className="mb-2 flex items-center gap-3 text-sm text-white/80">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 opacity-70" />
+                    <span>Continuing from panel #{activeRelay.stepIndex || 1}</span>
+                  </div>
+                  {activeRelay.lastStep?.thumbnail_url && (
+                    <img
+                      src={activeRelay.lastStep.thumbnail_url}
+                      alt="Prev"
+                      className="w-10 h-10 rounded-lg object-cover border border-white/10"
+                    />
+                  )}
+                </div>
+              ) : null}
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={
+                  latestResult?.status === 'done' && latestResult?.image
+                    ? 'Tweak the prompt below if you want a different vibe.'
+                    : 'Meanwhile in the MeowVerse… what’s the next scene?'
+                }
+                className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none"
+                style={{ color: '#fff' }}
+                onFocus={() => setIsExpanded(true)}
+              />
+              <div className="absolute bottom-4 left-4 flex items-center gap-3">
+                <label className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5">
+                  {uploading ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <ImageIcon className="w-5 h-5" />
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+                </label>
+              </div>
+              <div className="absolute bottom-4 right-4">
+                <button
+                  onClick={handleCreateDraft}
+                  disabled={creatingDraft}
+                  className="w-10 h-10 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60"
+                >
+                  {creatingDraft ? <LoadingSpinner size="sm" /> : <Wand2 className="w-5 h-5" />}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between px-3 py-2 text-white/80 cursor-text">
+              <div className="flex items-center gap-3">
+                <ImageIcon className="w-5 h-5 opacity-70" />
+              </div>
+              <div className="flex-1 text-center text-sm sm:text-base font-semibold">
+                {isGenerating ? (
+                  <span className="text-white/70">Generating...</span>
+                ) : (
+                  '😼 Meanwhile in the MeowVerse… what’s the next scene? 😼'
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 opacity-70" />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

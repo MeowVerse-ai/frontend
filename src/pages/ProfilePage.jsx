@@ -1,66 +1,21 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { userService } from '../services/user.service';
-import { uploadService } from '../services/upload.service';
-import { subscriptionService } from '../services/subscription.service';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { User, Mail, Edit3, Calendar, Coins, CheckCircle, Camera, Crown, X } from 'lucide-react';
+import { User, Mail, Edit3, Calendar, Coins, CheckCircle, X } from 'lucide-react';
 
 const ProfilePage = () => {
   const { user, setUser, refreshUser } = useAuth();
   const [username, setUsername] = useState(user?.username || '');
   const [bio, setBio] = useState(user?.bio || '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
-  const [avatarPreview, setAvatarPreview] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const fileInputRef = useRef(null);
 
   const MAX_BIO_LENGTH = 500;
-
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image size must be less than 5MB');
-      return;
-    }
-
-    setError('');
-    setUploadingAvatar(true);
-
-    try {
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-
-      // Upload to S3
-      const result = await uploadService.uploadFile(file);
-      setAvatarUrl(result.url);
-      setSuccess('Avatar uploaded! Click Save Changes to update your profile.');
-    } catch (err) {
-      setError(err.message || 'Failed to upload avatar');
-      setAvatarPreview(null);
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -91,18 +46,12 @@ const ProfilePage = () => {
         bio: bio.trim(),
       };
 
-      // Only include avatar_url if it changed
-      if (avatarUrl !== user?.avatar_url) {
-        updateData.avatar_url = avatarUrl;
-      }
-
       const response = await userService.updateProfile(updateData);
 
       // Update user in context
       setUser(response.data);
 
       setSuccess('Profile updated successfully!');
-      setAvatarPreview(null);
 
       // Refresh user data
       setTimeout(() => {
@@ -118,35 +67,16 @@ const ProfilePage = () => {
   const handleCancel = () => {
     setUsername(user?.username || '');
     setBio(user?.bio || '');
-    setAvatarUrl(user?.avatar_url || '');
-    setAvatarPreview(null);
     setError('');
     setSuccess('');
   };
 
-  const handleCancelSubscription = async () => {
-    setCancelling(true);
-    setError('');
-    try {
-      await subscriptionService.cancel();
-      setSuccess('Subscription cancelled. You will keep access until the end of your billing period.');
-      setShowCancelModal(false);
-      // Refresh user data
-      setTimeout(() => {
-        refreshUser();
-      }, 500);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to cancel subscription');
-      setShowCancelModal(false);
-    } finally {
-      setCancelling(false);
-    }
-  };
-
   const hasChanges =
     username !== (user?.username || '') ||
-    bio !== (user?.bio || '') ||
-    avatarUrl !== (user?.avatar_url || '');
+    bio !== (user?.bio || '');
+
+  const avatarInitial =
+    (username || user?.username || '?').charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-28 pb-12 px-4">
@@ -206,46 +136,6 @@ const ProfilePage = () => {
                     </div>
                   )}
 
-                  {/* Subscription Tier */}
-                  <div>
-                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-1">
-                      <Crown className="w-4 h-4" />
-                      Subscription Tier
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {user?.subscription_tier === 'creator' ? (
-                        <>
-                          <span className="text-white font-semibold">Creator Tier</span>
-                          <Crown className="w-4 h-4 text-yellow-500" />
-                        </>
-                      ) : (
-                        <span className="text-white">Free Tier</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Next Billing Date (if Creator) */}
-                  {user?.subscription_tier === 'creator' && user?.subscription_expires_at && (
-                    <div>
-                      <label className="text-sm text-gray-400 flex items-center gap-2 mb-1">
-                        <Calendar className="w-4 h-4" />
-                        Next Billing Date
-                      </label>
-                      <p className="text-white">
-                        {new Date(user.subscription_expires_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </p>
-                      <button
-                        onClick={() => setShowCancelModal(true)}
-                        className="mt-2 text-sm text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        Cancel Subscription
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -274,52 +164,19 @@ const ProfilePage = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Avatar Upload */}
+                  {/* Avatar (read-only for MVP) */}
                   <div>
                     <label className="text-sm font-medium text-gray-300 mb-2 block">
-                      Profile Picture
+                      Profile Picture (MVP: auto-generated)
                     </label>
                     <div className="flex items-center gap-4">
-                      <div className="relative">
-                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 flex items-center justify-center">
-                          {avatarPreview || avatarUrl ? (
-                            <img
-                              src={avatarPreview || avatarUrl}
-                              alt="Avatar"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <User className="w-12 h-12 text-white" />
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploadingAvatar}
-                          className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 transition-colors disabled:opacity-50"
-                        >
-                          <Camera className="w-4 h-4" />
-                        </button>
+                      <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 flex items-center justify-center border border-white/10">
+                        <span className="text-3xl font-bold text-white">{avatarInitial}</span>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-400 mb-1">
-                          Upload a new avatar
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          JPG, PNG or GIF. Max size 5MB.
-                        </p>
-                        {uploadingAvatar && (
-                          <p className="text-sm text-purple-400 mt-1">Uploading...</p>
-                        )}
+                      <div className="flex-1 text-sm text-gray-400">
+                        Avatars are locked for MVP. We’ll auto-generate using your initials.
                       </div>
                     </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
                   </div>
 
                   {/* Username */}
@@ -361,7 +218,7 @@ const ProfilePage = () => {
                       size="md"
                       className="flex-1"
                       loading={loading}
-                      disabled={!hasChanges || uploadingAvatar}
+                      disabled={!hasChanges}
                     >
                       Save Changes
                     </Button>
@@ -383,62 +240,6 @@ const ProfilePage = () => {
       </div>
 
       {/* Cancel Subscription Modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="relative max-w-md w-full">
-            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 via-pink-600 to-red-600 rounded-3xl blur-xl opacity-75"></div>
-            <div className="relative bg-slate-900 rounded-3xl p-8 border border-red-500/30">
-              <button
-                onClick={() => setShowCancelModal(false)}
-                disabled={cancelling}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <h2 className="text-2xl font-bold text-white mb-2">Cancel Subscription?</h2>
-              <p className="text-gray-400 mb-4">
-                Are you sure you want to cancel your Creator tier subscription?
-              </p>
-
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
-                <p className="text-yellow-400 text-sm">
-                  <strong>Note:</strong> You'll keep your Creator benefits until{' '}
-                  {user?.subscription_expires_at &&
-                    new Date(user.subscription_expires_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })
-                  }
-                </p>
-              </div>
-
-              <div className="flex gap-4">
-                <Button
-                  onClick={handleCancelSubscription}
-                  variant="danger"
-                  size="md"
-                  className="flex-1"
-                  loading={cancelling}
-                  disabled={cancelling}
-                >
-                  Yes, Cancel Subscription
-                </Button>
-                <Button
-                  onClick={() => setShowCancelModal(false)}
-                  variant="secondary"
-                  size="md"
-                  className="flex-1"
-                  disabled={cancelling}
-                >
-                  Keep Subscription
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

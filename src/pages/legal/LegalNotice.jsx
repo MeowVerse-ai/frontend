@@ -15,21 +15,21 @@ const LegalNotice = () => {
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Company Information</h2>
 
             <div className="bg-gray-50 p-6 rounded-lg space-y-3">
-              <p><strong>Company Name:</strong> MeowVerse Ltd.</p>
+              <p><strong>Name:</strong> MeowVerse Ltd.</p>
               <p><strong>Legal Form:</strong> Limited Company</p>
               <p><strong>Registered in:</strong> Hong Kong Special Administrative Region (SAR)</p>
-              <p><strong>Company Registration Number:</strong> <span className="text-purple-600">79032161</span></p>
+              <p><strong>Registration Number:</strong> <span className="text-purple-600">79032161</span></p>
             </div>
           </section>
 
           {/* Registered Address */}
           <section>
-            <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Registered Business Address</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Business Address</h2>
 
             <div className="bg-gray-50 p-6 rounded-lg">
-              <p>Room D3, 11/F, Luk Hop Industrial Building</p>
-              <p>8 Luk Hop Street, San Po Kong</p>
-              <p>Kowloon, Hong Kong SAR</p>
+              <p>Rm D3, 11/F, Luk Hop Industrial Building</p>
+              <p>8 Luk Hop Street, San Po Kong, Kowloon</p>
+              <p>Hong Kong SAR</p>
             </div>
           </section>
 
@@ -38,7 +38,7 @@ const LegalNotice = () => {
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Management / Authorized Representative</h2>
 
             <div className="bg-gray-50 p-6 rounded-lg">
-              <p><strong>Managing Director / CEO:</strong> <span className="text-purple-600">Dr.-Ing. Zizhe Wang</span></p>
+              <p><strong>Founder & CEO:</strong> <span className="text-purple-600">Zizhe Wang</span></p>
             </div>
           </section>
 
@@ -87,7 +87,7 @@ const LegalNotice = () => {
             <p className="text-sm text-gray-600 mb-3">(Required under §18 Abs. 2 MStV - Germany)</p>
 
             <div className="bg-gray-50 p-6 rounded-lg">
-              <p><strong>Name:</strong> <span className="text-purple-600">Dr.-Ing. Zizhe Wang</span></p>
+              <p><strong>Name:</strong> <span className="text-purple-600">Zizhe Wang</span></p>
               <p><strong>Address:</strong> Same as registered business address above</p>
             </div>
           </section>
@@ -217,7 +217,7 @@ const LegalNotice = () => {
           {/* Last Updated */}
           <section className="mt-12 pt-6 border-t border-gray-200">
             <p className="text-sm text-gray-600">
-              <strong>Last Updated:</strong> November 2025
+              <strong>Last Updated:</strong> January 1, 2026
             </p>
           </section>
 

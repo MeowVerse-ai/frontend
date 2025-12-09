@@ -18,6 +18,11 @@ export const paymentService = {
     return await api.get(`/payment/session/${sessionId}`);
   },
 
+  // Finalize session (fallback if webhook missed)
+  finalizeSession: async (sessionId) => {
+    return await api.post('/payment/finalize', { sessionId });
+  },
+
   // Get payment history
   getPaymentHistory: async (userId) => {
     return await api.get(`/payment/history/${userId}`);

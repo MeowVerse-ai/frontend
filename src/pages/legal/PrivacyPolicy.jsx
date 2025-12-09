@@ -6,7 +6,7 @@ const PrivacyPolicy = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 md:p-12">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">Privacy Policy</h1>
-        <p className="text-sm text-gray-600 mb-8">Last Updated: November 11, 2025</p>
+        <p className="text-sm text-gray-600 mb-8">Last Updated: January 1, 2026</p>
 
         <div className="prose max-w-none space-y-6 text-gray-700">
           <section>
@@ -231,9 +231,9 @@ const PrivacyPolicy = () => {
               If you have questions, concerns, or requests regarding this Privacy Policy or your personal information, please contact us:
             </p>
             <div className="mt-4 bg-gray-50 p-6 rounded-lg">
-              <p><strong>Company:</strong> MeowVerse Ltd.</p>
-              <p className="mt-2"><strong>Registered in:</strong> Hong Kong SAR</p>
-              <p className="mt-2"><strong>Address:</strong> Room D3, 11/F, Luk Hop Industrial Building, 8 Luk Hop Street, San Po Kong, Kowloon</p>
+              <p>MeowVerse Ltd.</p>
+              <p className="mt-2">Rm D3, 11/F, Luk Hop Industrial Building, 8 Luk Hop Street, San Po Kong, Kowloon</p>
+              <p className="mt-2">Hong Kong SAR</p>
               <p className="mt-4"><strong>Email:</strong> privacy@meowverse.ai</p>
               <p className="mt-2"><strong>Support:</strong> support@meowverse.ai</p>
               <p className="mt-2"><strong>Data Protection Requests:</strong> <Link to="/settings/privacy" className="text-purple-600 hover:underline">Privacy Settings</Link></p>
