@@ -230,14 +230,6 @@ const Navbar = () => {
                   <span className="font-semibold">MeowMents</span>
                 </button>
                 <Link
-                  to="/studio"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-3 rounded-lg bg-gradient-to-r from-pink-600/20 to-purple-600/20 hover:from-pink-600/30 hover:to-purple-600/30 transition-colors flex items-center space-x-3"
-                >
-                  <WandSparkles size={20} />
-                  <span className="font-semibold">MeowStudio</span>
-                </Link>
-                <Link
                   to="/stars"
                   onClick={() => setMobileMenuOpen(false)}
                   className="block px-4 py-3 rounded-lg bg-gradient-to-r from-yellow-600/20 to-orange-600/20 hover:from-yellow-600/30 hover:to-orange-600/30 transition-colors flex items-center space-x-3"
