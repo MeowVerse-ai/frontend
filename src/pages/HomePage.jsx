@@ -617,7 +617,12 @@ const HomePage = () => {
                       </button>
                       <button
                         className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
-                        onClick={() => setLatestResult(null)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLatestResult(null);
+                          handleCreateDraft(); // rerun generation with current prompt
+                        }}
                       >
                         Generate another with this prompt
                       </button>

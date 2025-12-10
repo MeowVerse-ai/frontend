@@ -843,7 +843,9 @@ const PostDetailPage = () => {
                     {isPublishing ? 'Publishing...' : 'Continue the rally with this image'}
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       const nextPrompt =
                         lastUsedPrompt ||
                         stripSystemPrefix(latestResult.title || '') ||
