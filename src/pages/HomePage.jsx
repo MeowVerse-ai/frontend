@@ -313,8 +313,20 @@ const HomePage = () => {
     }
   };
 
-  const handleCreateDraft = async () => {
-    if (!prompt.trim()) {
+  const handleUploadDisabled = (e) => {
+    e.preventDefault();
+    alert('Image upload coming soon.');
+  };
+
+  const handleCreateDraft = async (overridePrompt) => {
+    if (overridePrompt && typeof overridePrompt !== 'string') {
+      overridePrompt.preventDefault?.();
+      overridePrompt.stopPropagation?.();
+      overridePrompt = undefined;
+    }
+    const promptToUse = ((typeof overridePrompt === 'string' ? overridePrompt : prompt) || '').trim();
+    if (!promptToUse) {
+      setIsExpanded(true);
       alert('Please enter a prompt');
       return;
     }
@@ -328,11 +340,12 @@ const HomePage = () => {
     setGenError('');
     setLatestResult(null);
     setActiveDraft(null);
+    setPrompt(promptToUse);
     try {
       const sessionRes = await relayService.createSession();
       const sessionId = sessionRes.data.data.id;
       const draftRes = await relayService.createDraft(sessionId, {
-        prompt,
+        prompt: promptToUse,
         input_media_id: inputMediaId || undefined,
       });
       const jobId = draftRes.data?.data?.job?.id;
@@ -575,7 +588,7 @@ const HomePage = () => {
           onClick={() => setIsExpanded(true)}
         >
           {isExpanded ? (
-            <>
+            <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto pr-1">
               {/* Inline generation result/preview */}
               {latestResult && (
                 <div className="mb-3 rounded-2xl bg-black/30 border border-white/10 p-3 relative">
@@ -620,8 +633,17 @@ const HomePage = () => {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          const fallbackPrompt =
+                            prompt ||
+                            latestResult.title ||
+                            (activeRelay?.lastStep?.prompt_full ?? '');
+                          if (!fallbackPrompt) {
+                            alert('Please enter a prompt');
+                            return;
+                          }
                           setLatestResult(null);
-                          handleCreateDraft(); // rerun generation with current prompt
+                          setIsExpanded(true);
+                          handleCreateDraft(fallbackPrompt); // rerun generation with selected prompt
                         }}
                       >
                         Generate another with this prompt
@@ -664,25 +686,34 @@ const HomePage = () => {
                 />
               </div>
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                <label className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5">
+                <label
+                  className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5"
+                  onClick={handleUploadDisabled}
+                >
                   {uploading ? (
                     <LoadingSpinner size="sm" />
                   ) : (
                     <ImageIcon className="w-5 h-5" />
                   )}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleUpload}
+                    disabled
+                  />
                 </label>
               </div>
               <div className="absolute bottom-4 right-4">
                 <button
-                  onClick={handleCreateDraft}
+                  onClick={() => handleCreateDraft()}
                   disabled={creatingDraft}
                   className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60 text-sm font-semibold"
                 >
                   <Wand2 className={`w-5 h-5 ${creatingDraft || isGenerating ? 'animate-spin' : ''}`} />
                 </button>
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex items-center justify-between px-3 py-2 text-white/80 cursor-text">
               <div className="flex items-center gap-3">

@@ -258,8 +258,11 @@ const PostDetailPage = () => {
       const status = error.response?.status;
       const message = error.response?.data?.error || 'Generation failed, please try again.';
       if (status === 409) {
+        const lowerMsg = message.toLowerCase();
         setLockMessage(
-          message.includes('cooldown')
+          message.includes('cooldown') ||
+          lowerMsg.includes('wait 6 hours') ||
+          lowerMsg.includes('last panel')
             ? 'The same author must wait 6 hours before continuing.'
             : 'Someone is currently continuing this story, please try again later.'
         );
@@ -758,36 +761,40 @@ const PostDetailPage = () => {
                       </div>
                     </div>
 
-                    <div className="relative flex-1 flex flex-col">
-                      <textarea
-                        value={relayPrompt}
-                        onChange={(e) => setRelayPrompt(e.target.value)}
-                        placeholder="Describe the next panel... You can write in any language."
-                        className="w-full flex-1 bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl px-4 pr-14 py-4 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[240px] shadow-inner shadow-purple-500/10"
-                        disabled={isComplete || isGenerating}
-                        aria-label="Relay prompt"
-                      />
-                      <button
-                        onClick={() => runInlineRelay(relayPrompt)}
-                        disabled={isComplete || !lastStepMediaId || creatingDraft}
-                        className={`absolute bottom-4 right-4 w-11 h-11 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition ${isPromptFilled ? '' : 'opacity-40'}`}
-                        title={isMock ? 'Mock post' : 'Continue relay'}
-                        aria-label={isMock ? 'Mock post' : 'Continue relay'}
-                      >
-                        <Wand2 size={18} />
-                      </button>
-                      {(creatingDraft || isGenerating) && (
-                        <div className="absolute inset-0 rounded-2xl bg-slate-950/60 flex items-center justify-center z-10">
-                          <LoadingSpinner size="sm" text="Generating" />
+                    <div className="flex-1 flex flex-col gap-3">
+                      <div className="relative flex-1">
+                        <textarea
+                          value={relayPrompt}
+                          onChange={(e) => setRelayPrompt(e.target.value)}
+                          placeholder="Describe the next panel... You can write in any language."
+                          className="w-full h-full bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl pl-4 pr-16 pt-4 pb-16 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[260px] shadow-inner shadow-purple-500/10"
+                          disabled={isComplete || isGenerating}
+                          aria-label="Relay prompt"
+                        />
+                        <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                          <button
+                            onClick={() => runInlineRelay(relayPrompt)}
+                            disabled={isComplete || !lastStepMediaId || creatingDraft}
+                            className={`w-11 h-11 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition ${isPromptFilled ? '' : 'opacity-40'}`}
+                            title={isMock ? 'Mock post' : 'Continue relay'}
+                            aria-label={isMock ? 'Mock post' : 'Continue relay'}
+                          >
+                            <Wand2 size={18} />
+                          </button>
                         </div>
-                      )}
-                      {isComplete && (
-                        <div className="absolute inset-0 bg-slate-950/70 rounded-2xl flex items-center justify-center text-white/75 text-sm">
-                          Relay is complete (6/6)
-                        </div>
-                      )}
+                        {(creatingDraft || isGenerating) && (
+                          <div className="absolute inset-0 rounded-2xl bg-slate-950/60 flex items-center justify-center z-10">
+                            <LoadingSpinner size="sm" text="Generating" />
+                          </div>
+                        )}
+                        {isComplete && (
+                          <div className="absolute inset-0 bg-slate-950/70 rounded-2xl flex items-center justify-center text-white/75 text-sm">
+                            Relay is complete (6/6)
+                          </div>
+                        )}
+                      </div>
                       {lockMessage && (
-                        <div className="mt-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-sm">
+                        <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-sm">
                           {lockMessage}
                         </div>
                       )}
@@ -852,6 +859,8 @@ const PostDetailPage = () => {
                         relayPrompt;
                       if (nextPrompt) {
                         runInlineRelay(nextPrompt);
+                      } else {
+                        setIsGenerating(false);
                       }
                       setActiveDraft(null);
                       setLatestResult(null);
