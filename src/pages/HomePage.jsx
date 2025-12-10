@@ -340,7 +340,6 @@ const HomePage = () => {
       setIsExpanded(true);
     } finally {
       setCreatingDraft(false);
-      setIsGenerating(false);
     }
   };
 
@@ -638,6 +637,7 @@ const HomePage = () => {
                 className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none"
                 style={{ color: '#fff' }}
                 onFocus={() => setIsExpanded(true)}
+                disabled={isGenerating || creatingDraft}
               />
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
                 <label className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5">
@@ -652,21 +652,28 @@ const HomePage = () => {
               <div className="absolute bottom-4 right-4">
                 <button
                   onClick={handleCreateDraft}
-                  disabled={creatingDraft}
-                  className="w-10 h-10 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60"
-                >
-                  {creatingDraft ? <LoadingSpinner size="sm" /> : <Wand2 className="w-5 h-5" />}
-                </button>
-              </div>
-            </>
+                disabled={creatingDraft}
+                className="w-10 h-10 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60"
+              >
+                  {creatingDraft || isGenerating ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Wand2 className="w-5 h-5" />
+                  )}
+              </button>
+            </div>
+          </>
           ) : (
             <div className="flex items-center justify-between px-3 py-2 text-white/80 cursor-text">
               <div className="flex items-center gap-3">
                 <ImageIcon className="w-5 h-5 opacity-70" />
               </div>
               <div className="flex-1 text-center text-sm sm:text-base font-semibold">
-                {isGenerating ? (
-                  <span className="text-white/70">Generating...</span>
+                {isGenerating || creatingDraft ? (
+                  <span className="inline-flex items-center gap-2 text-white/80">
+                    <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    Generating...
+                  </span>
                 ) : (
                   '😼 Meanwhile in the MeowVerse… What’s the next scene? 😼'
                 )}
