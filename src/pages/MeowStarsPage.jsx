@@ -190,8 +190,17 @@ const MeowStarsPage = () => {
                         </div>
 
                         {/* Avatar */}
-                        <div className="flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center text-2xl">
-                          {creator.avatar_url || '👤'}
+                        <div className="flex-shrink-0 w-14 h-14 rounded-full overflow-hidden bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center text-2xl">
+                          {creator.avatar_url ? (
+                            <img
+                              src={creator.avatar_url}
+                              alt={creator.username}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span>👤</span>
+                          )}
                         </div>
 
                         {/* Info */}
