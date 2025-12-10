@@ -263,6 +263,12 @@ const HomePage = () => {
         }
       } catch (err) {
         console.error('Poll job failed', err);
+        setIsGenerating(false);
+        setGenError('Generation failed, please try again.');
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+        }
+        pollRef.current = null;
       }
     }, 2500);
   };
@@ -316,6 +322,7 @@ const HomePage = () => {
       navigate('/register');
       return;
     }
+    setIsExpanded(true);
     setCreatingDraft(true);
     setIsGenerating(true);
     setGenError('');
@@ -571,7 +578,14 @@ const HomePage = () => {
             <>
               {/* Inline generation result/preview */}
               {latestResult && (
-                <div className="mb-3 rounded-2xl bg-black/30 border border-white/10 p-3">
+                <div className="mb-3 rounded-2xl bg-black/30 border border-white/10 p-3 relative">
+                  <button
+                    onClick={() => setLatestResult(null)}
+                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80"
+                    aria-label="Close preview"
+                  >
+                    ✕
+                  </button>
                   {latestResult.status === 'pending' ? (
                     <div className="flex flex-col items-center justify-center py-6 gap-3">
                       <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -626,19 +640,24 @@ const HomePage = () => {
                   )}
                 </div>
               ) : null}
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={
-                  latestResult?.status === 'done' && latestResult?.image
-                    ? 'Tweak the prompt below if you want a different vibe.'
-                    : 'Meanwhile in the MeowVerse… What’s the next scene? You can write in any language.'
-                }
-                className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none"
-                style={{ color: '#fff' }}
-                onFocus={() => setIsExpanded(true)}
-                disabled={isGenerating || creatingDraft}
-              />
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={
+                    latestResult?.status === 'done' && latestResult?.image
+                      ? 'Tweak the prompt below if you want a different vibe.'
+                      : 'Meanwhile in the MeowVerse… What’s the next scene? You can write in any language.'
+                  }
+                  className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none transition-opacity"
+                  style={{
+                    color: '#fff',
+                    opacity: isGenerating || creatingDraft ? 0.6 : 1,
+                  }}
+                  onFocus={() => setIsExpanded(true)}
+                  disabled={isGenerating || creatingDraft}
+                />
+              </div>
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
                 <label className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5">
                   {uploading ? (
@@ -652,31 +671,22 @@ const HomePage = () => {
               <div className="absolute bottom-4 right-4">
                 <button
                   onClick={handleCreateDraft}
-                disabled={creatingDraft}
-                className="w-10 h-10 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60"
-              >
-                  {creatingDraft || isGenerating ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <Wand2 className="w-5 h-5" />
-                  )}
-              </button>
-            </div>
-          </>
+                  disabled={creatingDraft}
+                  className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition disabled:opacity-60 text-sm font-semibold"
+                >
+                  <Wand2 className={`w-5 h-5 ${creatingDraft || isGenerating ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </>
           ) : (
             <div className="flex items-center justify-between px-3 py-2 text-white/80 cursor-text">
               <div className="flex items-center gap-3">
                 <ImageIcon className="w-5 h-5 opacity-70" />
               </div>
               <div className="flex-1 text-center text-sm sm:text-base font-semibold">
-                {isGenerating || creatingDraft ? (
-                  <span className="inline-flex items-center gap-2 text-white/80">
-                    <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                    Generating...
-                  </span>
-                ) : (
-                  '😼 Meanwhile in the MeowVerse… What’s the next scene? 😼'
-                )}
+                {isGenerating || creatingDraft
+                  ? 'Generating...'
+                  : '😼 Meanwhile in the MeowVerse… What’s the next scene? 😼'}
               </div>
               <div className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 opacity-70" />
