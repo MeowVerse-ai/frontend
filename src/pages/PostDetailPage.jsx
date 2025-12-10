@@ -80,7 +80,7 @@ const mockPosts = {
 const PostDetailPage = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
@@ -252,6 +252,7 @@ const PostDetailPage = () => {
       if (draftId) {
         setActiveDraft({ sessionId: post.relay_session_id, draftId });
       }
+      refreshUser?.();
       return { jobId, draftId };
     } catch (error) {
       console.error('Failed to create relay draft:', error);
@@ -266,6 +267,10 @@ const PostDetailPage = () => {
             ? 'The same author must wait 6 hours before continuing.'
             : 'Someone is currently continuing this story, please try again later.'
         );
+      } else if (status === 429) {
+        setLockMessage('Too many requests. Please wait a moment before trying again.');
+        setGenError('Too many requests. Please wait and retry.');
+        alert('You are sending requests too quickly. Please wait a moment and try again.');
       } else {
         setLockMessage('');
         alert(message);

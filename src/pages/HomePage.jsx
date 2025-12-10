@@ -15,7 +15,7 @@ const TABS = [
 ];
 
 const HomePage = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('popular');
   const [posts, setPosts] = useState([]);
@@ -348,6 +348,8 @@ const HomePage = () => {
         prompt: promptToUse,
         input_media_id: inputMediaId || undefined,
       });
+      // Refresh user credits after draft creation (cost deducted server-side)
+      refreshUser?.();
       const jobId = draftRes.data?.data?.job?.id;
       const draftId = draftRes.data?.data?.draft?.id;
       setActiveDraft({ sessionId, draftId, jobId });
@@ -356,7 +358,15 @@ const HomePage = () => {
       setInputMediaId(null);
     } catch (error) {
       console.error('Failed to create draft', error);
-      setGenError(error.response?.data?.error || 'Generation failed, please try again.');
+      const status = error.response?.status;
+      const message = error.response?.data?.error || 'Generation failed, please try again.';
+      if (status === 429) {
+        setGenError('Too many requests. Please wait a moment and try again.');
+        alert('You are sending requests too quickly. Please wait a moment and try again.');
+      } else {
+        setGenError(message);
+        alert(message);
+      }
       setIsExpanded(true);
     } finally {
       setCreatingDraft(false);

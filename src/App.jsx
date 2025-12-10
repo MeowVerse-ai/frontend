@@ -18,6 +18,7 @@ import ProfilePage from './pages/ProfilePage';
 import ReferralsPage from './pages/ReferralsPage';
 import PrivacySettingsPage from './pages/PrivacySettingsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import MeowGuidePage from './pages/MeowGuidePage';
 
 // Legal Pages
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
@@ -119,6 +120,13 @@ function App() {
           <Route path="/about" element={
             <Layout>
               <AboutPage />
+            </Layout>
+          } />
+
+          {/* MeowGuide - How to play */}
+          <Route path="/guide" element={
+            <Layout>
+              <MeowGuidePage />
             </Layout>
           } />
 

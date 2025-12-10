@@ -48,7 +48,7 @@ const AboutPage = () => {
                   badge: 'CTO',
                   desc: 'Codes by day, naps on the keyboard by night, turning purrs into innovation.',
                   gradient: 'from-blue-500 to-cyan-500',
-                  skills: ['AI/ML', 'Architecture', 'Curiosity']
+                  skills: ['AI/ML', 'Architecture']
                 },
                 {
                   name: '豆包(DouBao)',
@@ -56,7 +56,7 @@ const AboutPage = () => {
                   badge: 'CPO',
                   desc: 'Believes every click should feel as smooth as a cat\'s purr - intuitive, cozy, full of joy.',
                   gradient: 'from-pink-500 to-rose-500',
-                  skills: ['UX Design', 'Product', 'Empathy']
+                  skills: ['UX Design', 'Product']
                 },
                 {
                   name: '丘丘(QiuQiu)',
@@ -64,7 +64,7 @@ const AboutPage = () => {
                   badge: 'CEO',
                   desc: 'Visionary with nine lives of wisdom. Loving father to MiGuo and DouBao.',
                   gradient: 'from-amber-500 to-orange-500',
-                  skills: ['Strategy', 'Leadership', 'Vision']
+                  skills: ['Strategy', 'Leadership']
                 },
               ].map((member, idx) => (
                 <div key={idx} className="group relative">
@@ -100,10 +100,8 @@ const AboutPage = () => {
                     Turning your cherished moments into eternal meowments
                   </p>
                   <p className="text-lg sm:text-lg text-gray-300 text-center leading-relaxed mb-6 sm:mb-8">
-                    We're revolutionizing how pet parents capture and cherish their precious moments. 
-                    With a deep understanding of what makes pets special, 
-                    we're building a platform that transforms everyday moments into extraordinary memories. 
-                    Every meowment matters, and we're here to make each one magical.
+                    Turn every shared spark into a living, evolving meowment.
+                    We’re reimagining collaborative storytelling: one prompt at a time, your moments fuse with the community’s creativity, transforming everyday memories into magical, ever‑growing tales. Every relay keeps your meowment alive, and every creator makes it shine.
                   </p>
                   <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
                     <span className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-purple-500/30 rounded-full text-pink-300 font-semibold text-sm sm:text-base">

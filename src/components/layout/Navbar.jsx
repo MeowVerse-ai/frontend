@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Sparkles, Zap, WandSparkles, PawPrint, User, LogOut, Image, Menu, X, Info, Settings, Gift } from 'lucide-react';
+import { Sparkles, Zap, WandSparkles, PawPrint, User, LogOut, Image, Menu, X, Info, Settings, Gift, BookOpen } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -54,10 +54,11 @@ const Navbar = () => {
               MeowStars
             </Link>
             <Link
-              to="/about"
-              className="px-4 py-1.5 rounded-full font-bold border border-purple-600 text-white hover:bg-purple-600 hover:text-white transition-all shadow-sm"
+              to="/guide"
+              className="px-4 py-1.5 rounded-full font-bold bg-gradient-to-r from-indigo-500/80 to-purple-500/90 text-white shadow-lg hover:scale-105 transition-all"
             >
-              🧬 About
+              <BookOpen className="inline-block mr-2" size={18} />
+              MeowGuide
             </Link>
 
             {/* User Dropdown or Auth Buttons */}
@@ -171,12 +172,12 @@ const Navbar = () => {
                   <span className="font-semibold">MeowStars</span>
                 </Link>
                 <Link
-                  to="/about"
+                  to="/guide"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-4 py-3 rounded-lg hover:bg-slate-800/50 transition-colors flex items-center space-x-3"
+                  className="block px-4 py-3 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 transition-colors flex items-center space-x-3"
                 >
-                  <Info size={20} />
-                  <span className="font-semibold">About</span>
+                  <BookOpen size={20} />
+                  <span className="font-semibold">MeowGuide</span>
                 </Link>
                 <div className="border-t border-purple-500/20 my-2"></div>
                 <Link
@@ -245,11 +246,11 @@ const Navbar = () => {
                   <span className="font-semibold">MeowStars</span>
                 </Link>
                 <Link
-                  to="/about"
+                  to="/guide"
                   onClick={() => setMobileMenuOpen(false)}
                   className="block px-4 py-3 mx-2 text-center rounded-full font-bold border-2 border-purple-500 text-purple-400 hover:bg-purple-500/20"
                 >
-                  About
+                  MeowGuide
                 </Link>
                 
                 <Link

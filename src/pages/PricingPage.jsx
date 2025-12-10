@@ -84,7 +84,7 @@ const PricingPage = () => {
                 const thisPricePerCredit = pkg.price / (pkg.credits || 1);
                 const basePricePerCredit = base / (packages[0]?.credits || 1);
                 const pct = Math.max(0, Math.round((basePricePerCredit - thisPricePerCredit) / basePricePerCredit * 100));
-                savingsText = pct > 0 ? `${pct}% cheaper per credit than ${packages[0]?.name}` : '';
+                savingsText = pct > 0 ? `${pct}% cheaper than ${packages[0]?.name}` : '';
               }
 
               const isPopular = pkg.id === 2 || pkg.badge;
