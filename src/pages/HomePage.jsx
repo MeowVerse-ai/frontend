@@ -633,7 +633,7 @@ const HomePage = () => {
                 placeholder={
                   latestResult?.status === 'done' && latestResult?.image
                     ? 'Tweak the prompt below if you want a different vibe.'
-                    : 'Meanwhile in the MeowVerse… what’s the next scene?'
+                    : 'Meanwhile in the MeowVerse… What’s the next scene? You can write in any language.'
                 }
                 className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none"
                 style={{ color: '#fff' }}
@@ -668,7 +668,7 @@ const HomePage = () => {
                 {isGenerating ? (
                   <span className="text-white/70">Generating...</span>
                 ) : (
-                  '😼 Meanwhile in the MeowVerse… what’s the next scene? 😼'
+                  '😼 Meanwhile in the MeowVerse… What’s the next scene? 😼'
                 )}
               </div>
               <div className="flex items-center gap-2">

@@ -126,15 +126,19 @@ const ProfilePage = () => {
                     </p>
                   </div>
 
-                  {user?.is_verified && (
-                    <div>
-                      <label className="text-sm text-gray-400 flex items-center gap-2 mb-1">
+                  <div>
+                    <label className="text-sm text-gray-400 flex items-center gap-2 mb-1">
+                      {user?.is_verified ? (
                         <CheckCircle className="w-4 h-4 text-green-500" />
-                        Account Status
-                      </label>
-                      <p className="text-green-400">Verified</p>
-                    </div>
-                  )}
+                      ) : (
+                        <X className="w-4 h-4 text-red-400" />
+                      )}
+                      User Verified
+                    </label>
+                    <p className={user?.is_verified ? 'text-green-400' : 'text-red-400'}>
+                      {user?.is_verified ? 'Yes' : 'No'}
+                    </p>
+                  </div>
 
                 </div>
               </div>
@@ -167,14 +171,14 @@ const ProfilePage = () => {
                   {/* Avatar (read-only for MVP) */}
                   <div>
                     <label className="text-sm font-medium text-gray-300 mb-2 block">
-                      Profile Picture (MVP: auto-generated)
+                      Profile Picture
                     </label>
                     <div className="flex items-center gap-4">
                       <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-r from-pink-600 to-purple-600 flex items-center justify-center border border-white/10">
                         <span className="text-3xl font-bold text-white">{avatarInitial}</span>
                       </div>
                       <div className="flex-1 text-sm text-gray-400">
-                        Avatars are locked for MVP. We’ll auto-generate using your initials.
+                        Avatars are locked for MVP.
                       </div>
                     </div>
                   </div>

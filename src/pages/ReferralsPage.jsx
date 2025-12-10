@@ -8,7 +8,8 @@ import ShareReferralModal from '../components/modals/ShareReferralModal';
 const ReferralsPage = () => {
   const [referralStats, setReferralStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
@@ -28,12 +29,17 @@ const ReferralsPage = () => {
 
   const handleCopyCode = () => {
     if (!referralStats?.referralCode) return;
+    navigator.clipboard.writeText(referralStats.referralCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
 
+  const handleCopyLink = () => {
+    if (!referralStats?.referralCode) return;
     const referralLink = `${window.location.origin}/register?ref=${referralStats.referralCode}`;
     navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   if (loading) {
@@ -87,13 +93,31 @@ const ReferralsPage = () => {
                     <button
                       onClick={handleCopyCode}
                       className="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                      title={copied ? "Copied!" : "Copy link"}
+                      title={copiedCode ? "Copied code!" : "Copy code"}
                     >
-                      {copied ? (
+                      {copiedCode ? (
                         <Check size={20} className="text-white" />
                       ) : (
                         <Copy size={20} className="text-white" />
                       )}
+                    </button>
+                  </div>
+
+                  {/* Copy options */}
+                  <div className="flex flex-col md:flex-row gap-3 mt-4">
+                    <button
+                      onClick={handleCopyCode}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold transition"
+                    >
+                      {copiedCode ? <Check size={18} /> : <Copy size={18} />}
+                      Copy code
+                    </button>
+                    <button
+                      onClick={handleCopyLink}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold transition"
+                    >
+                      {copiedLink ? <Check size={18} /> : <Share2 size={18} />}
+                      Copy invite link
                     </button>
                   </div>
                 </div>

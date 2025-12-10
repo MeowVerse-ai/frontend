@@ -17,6 +17,7 @@ import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import ProfilePage from './pages/ProfilePage';
 import ReferralsPage from './pages/ReferralsPage';
 import PrivacySettingsPage from './pages/PrivacySettingsPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 // Legal Pages
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
@@ -126,6 +127,13 @@ function App() {
             <PublicRoute>
               <LoginPage />
             </PublicRoute>
+          } />
+
+          {/* Email Verification */}
+          <Route path="/verify-email/:token" element={
+            <Layout>
+              <VerifyEmailPage />
+            </Layout>
           } />
           
           {/* Register Page - Public */}

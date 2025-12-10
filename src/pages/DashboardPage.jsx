@@ -234,9 +234,7 @@ const DashboardPage = () => {
                                 Panel #{job.step_index || job.step_number}
                               </span>
                             ) : null}
-                            <span className="text-sm text-gray-400">
-                              {job.model_name}
-                            </span>
+                            {/* Model hidden for MVP */}
                           </div>
                           <p className="text-white mb-2 line-clamp-2">
                             {job.prompt_user || stripSystemPrefix(job.prompt)}

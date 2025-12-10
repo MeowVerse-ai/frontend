@@ -42,7 +42,7 @@ const LoginPage = () => {
         setError('');
         setLoading(true);
         try {
-          const result = await authService.googleOAuth(tokenResponse.access_token, betaCode, referralCode.trim() || undefined);
+          const result = await authService.googleOAuth(tokenResponse.access_token, betaCode);
           localStorage.setItem('accessToken', result.data.accessToken);
           localStorage.setItem('refreshToken', result.data.refreshToken);
           setUser(result.data.user);
@@ -168,15 +168,6 @@ const LoginPage = () => {
                 required
               />
 
-              <Input
-                type="text"
-                label="Referral Code (Optional)"
-                placeholder="Enter referral code for bonus credits"
-                value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value)}
-                icon={Key}
-              />
-
               <Button
                 type="submit"
                 variant="primary"
@@ -241,6 +232,7 @@ const LoginPage = () => {
                   setShowBetaCodeModal(false);
                   setError('');
                   setBetaCode('');
+                  setReferralCode('');
                 }}
                 className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
               >
@@ -268,13 +260,14 @@ const LoginPage = () => {
                   icon={Key}
                   required
                 />
+
                 <Input
                   type="text"
                   label="Referral Code (Optional)"
-                  placeholder="Enter referral code for bonus credits"
+                  placeholder="Enter referral code (optional)"
                   value={referralCode}
                   onChange={(e) => setReferralCode(e.target.value)}
-                  icon={Key}
+                  icon={Sparkles}
                 />
 
                 <Button

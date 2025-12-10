@@ -33,6 +33,11 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) {
+          // No refresh token: clear access token but do not force redirect (public routes)
+          localStorage.removeItem('accessToken');
+          return Promise.reject(error);
+        }
         const response = await axios.post(`${apiBaseUrl}/auth/refresh-token`, {
           refreshToken,
         });
@@ -46,7 +51,7 @@ api.interceptors.response.use(
         // Refresh failed, logout user
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        // Do not hard-redirect; let caller decide (prevents anon users on public routes from being forced to login)
         return Promise.reject(refreshError);
       }
     }

@@ -1,28 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const CONSENT_VERSION = '1.0';
 const CONSENT_STORAGE_KEY = 'meowverse_legal_consent';
+const CONSENT_TTL_DAYS = 365; // only reshow after a year or version change
 
 const ConsentBanner = () => {
-  // Initialize state synchronously to prevent flash on mobile
-  const [isVisible, setIsVisible] = useState(() => {
+  const shouldShow = () => {
     try {
-      const storedConsent = localStorage.getItem(CONSENT_STORAGE_KEY);
-      if (!storedConsent) return true;
-
-      const { version, accepted } = JSON.parse(storedConsent);
+      // Guard for SSR (should not be SSR in Vite, but safer)
+      if (typeof window === 'undefined' || !window.localStorage) return true;
+      const stored = localStorage.getItem(CONSENT_STORAGE_KEY);
+      if (!stored) return true;
+      const parsed = JSON.parse(stored);
+      const { version, accepted, expiresAt } = parsed || {};
+      const expired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
+      if (expired) return true;
       return version !== CONSENT_VERSION || !accepted;
-    } catch (error) {
+    } catch {
       return true;
     }
-  });
+  };
+
+  // Initialize from storage synchronously to persist across reloads
+  const [isVisible, setIsVisible] = useState(() => shouldShow());
+
+  // Re-run after mount in case of hydration/permission issues
+  useEffect(() => {
+    setIsVisible(shouldShow());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAccept = () => {
     const consent = {
       version: CONSENT_VERSION,
       accepted: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + CONSENT_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(consent));
@@ -34,7 +48,8 @@ const ConsentBanner = () => {
       version: CONSENT_VERSION,
       accepted: false,
       essentialOnly: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + CONSENT_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(consent));

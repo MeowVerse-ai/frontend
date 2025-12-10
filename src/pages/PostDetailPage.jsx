@@ -99,6 +99,7 @@ const PostDetailPage = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [viewTracked, setViewTracked] = useState(false);
+  const [updateNotice, setUpdateNotice] = useState(false);
   const isMock = postId.startsWith('mock');
 
   useEffect(() => {
@@ -117,9 +118,30 @@ const PostDetailPage = () => {
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
+
+  // Poll for new relay steps so users see updates if someone else just added one
+  useEffect(() => {
+    if (isMock || !postId) return;
+    const interval = setInterval(async () => {
+      try {
+        const resp = await postsService.getById(postId);
+        const fetchedPost = resp?.data?.data || resp?.data || resp;
+        const newCount = (fetchedPost?.steps || fetchedPost?.relay_steps || []).length;
+        const currentCount = (post?.steps || post?.relay_steps || []).length;
+        if (newCount > currentCount) {
+          setPost(fetchedPost);
+          setUpdateNotice(true);
+          setTimeout(() => setUpdateNotice(false), 3000);
+        }
+      } catch (err) {
+        console.error('Polling post updates failed:', err);
+      }
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [postId, isMock, post]);
 
   const loadPost = async () => {
     setLoading(true);
@@ -200,6 +222,7 @@ const PostDetailPage = () => {
       navigate('/login');
       return;
     }
+    setLockMessage('');
     if (!promptText.trim()) {
       alert('Please enter a prompt');
       return;
@@ -232,7 +255,21 @@ const PostDetailPage = () => {
       return { jobId, draftId };
     } catch (error) {
       console.error('Failed to create relay draft:', error);
-      alert(error.response?.data?.error || 'Generation failed, please try again.');
+      const status = error.response?.status;
+      const message = error.response?.data?.error || 'Generation failed, please try again.';
+      if (status === 409) {
+        setLockMessage(
+          message.includes('cooldown')
+            ? 'The same author must wait 6 hours before continuing.'
+            : 'Someone is currently continuing this story, please try again later.'
+        );
+      } else {
+        setLockMessage('');
+        alert(message);
+      }
+      // Ensure UI stops showing "Generating" if parent already set it
+      setIsGenerating(false);
+      setGenError(message);
     } finally {
       setCreatingDraft(false);
     }
@@ -249,6 +286,8 @@ const PostDetailPage = () => {
   const lastStep = stepsArr[lastIndex];
   const lastStepMediaId = lastStep?.media_id || lastStep?.output_media_id || post?.media_id;
   const isComplete = stepsArr.length >= 6;
+  const [lockMessage, setLockMessage] = useState('');
+
   const isPromptFilled = relayPrompt.trim().length > 0;
   const canSubmit = !isComplete && !!lastStepMediaId && !creatingDraft;
   const participants = (() => {
@@ -351,12 +390,12 @@ const PostDetailPage = () => {
 
   const startJobPolling = (jobId) => {
     if (!jobId) return;
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
     setIsGenerating(true);
     setGenError('');
     setLatestResult({ status: 'pending', title: 'Generating next panel...' });
 
-    pollRef.current = setInterval(async () => {
+    const poll = async (delayMs = 4000) => {
       try {
         const res = await generationService.getJobStatus(jobId);
         const job = res.data?.job;
@@ -364,8 +403,9 @@ const PostDetailPage = () => {
         if (job.status === 'failed') {
           setGenError(job.error_message || 'Generation failed, please try again.');
           setIsGenerating(false);
-          clearInterval(pollRef.current);
+          clearTimeout(pollRef.current);
           pollRef.current = null;
+          return;
         }
         const imageUrl =
           job.result_url ||
@@ -375,7 +415,7 @@ const PostDetailPage = () => {
           job.result?.[0]?.url;
 
         if (job.status === 'completed') {
-          clearInterval(pollRef.current);
+          clearTimeout(pollRef.current);
           pollRef.current = null;
           setIsGenerating(false);
 
@@ -419,11 +459,27 @@ const PostDetailPage = () => {
                 setShowPreview(false);
             }
           }
+        } else {
+          // keep polling
+          pollRef.current = setTimeout(() => poll(delayMs), delayMs);
         }
       } catch (err) {
+        const status = err?.response?.status;
+        if (status === 429) {
+          const nextDelay = Math.min(delayMs * 2, 15000);
+          pollRef.current = setTimeout(() => poll(nextDelay), nextDelay);
+          return;
+        }
         console.error('Poll job failed', err);
+        setIsGenerating(false);
+        if (pollRef.current) {
+          clearTimeout(pollRef.current);
+        }
+        pollRef.current = null;
       }
-    }, 2500);
+    };
+
+    poll();
   };
 
   const runInlineRelay = async (promptText) => {
@@ -438,6 +494,7 @@ const PostDetailPage = () => {
     }
     if (!lastStepMediaId || isComplete) return;
 
+    setLockMessage('');
     setIsGenerating(true);
     setGenError('');
     setLatestResult(null);
@@ -445,7 +502,11 @@ const PostDetailPage = () => {
       const res = await handleRelayDraft(promptText);
       if (res?.jobId) {
         startJobPolling(res.jobId);
+        return;
       }
+      // If no job returned (e.g., blocked/verification required), stop the loading state
+      setIsGenerating(false);
+      setGenError(res?.message || '');
     } catch (err) {
       setGenError(err?.response?.data?.error || 'Generation failed, please try again.');
       setIsGenerating(false);
@@ -493,7 +554,17 @@ const PostDetailPage = () => {
       setActiveDraft(null);
     } catch (err) {
       console.error('Publish action failed', err);
-      alert(err?.response?.data?.error || 'Failed to publish this step.');
+      const message = err?.response?.data?.error || 'Failed to publish this step.';
+      if (err?.response?.status === 409) {
+        alert(`${message}\nPlease regenerate from the latest image.`);
+        // Clear current preview/draft so user can try again
+        setLatestResult(null);
+        setActiveDraft(null);
+        setShowPreview(false);
+        await loadPost();
+      } else {
+        alert(message);
+      }
     } finally {
       setIsPublishing(false);
     }
@@ -655,9 +726,14 @@ const PostDetailPage = () => {
                       className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500/80 via-purple-500/80 to-blue-500/80 text-white font-semibold hover:from-pink-400 hover:via-purple-400 hover:to-blue-400 shadow-lg shadow-purple-500/20 transition"
                     >
                       <Share2 size={16} />
-                      <span>Share and create with friends!</span>
+                      <span>Create together with friends!</span>
                     </button>
                   </div>
+                  {updateNotice && (
+                    <div className="px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-100 text-sm">
+                      Relay just got a new update. Refreshed content is loaded.
+                    </div>
+                  )}
                   <div className="bg-gradient-to-r from-purple-900/55 via-indigo-900/55 to-pink-900/55 backdrop-blur-2xl shadow-2xl shadow-purple-500/15 rounded-3xl p-5 flex flex-col gap-4 h-full">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
@@ -676,7 +752,9 @@ const PostDetailPage = () => {
                         <div className="text-white font-semibold truncate">
                           {isComplete ? 'Relay complete' : `Continuing from panel #${lastIndex + 1}`}
                         </div>
-                        <div className="text-xs text-white/70 pointer-events-none">Based on the latest image</div>
+                        <div className="text-xs text-white/70 pointer-events-none">
+                          Based on the latest image. 
+                        </div>
                       </div>
                     </div>
 
@@ -684,7 +762,7 @@ const PostDetailPage = () => {
                       <textarea
                         value={relayPrompt}
                         onChange={(e) => setRelayPrompt(e.target.value)}
-                        placeholder="Describe the next panel..."
+                        placeholder="Describe the next panel... You can write in any language."
                         className="w-full flex-1 bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl px-4 pr-14 py-4 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[240px] shadow-inner shadow-purple-500/10"
                         disabled={isComplete || isGenerating}
                         aria-label="Relay prompt"
@@ -706,6 +784,11 @@ const PostDetailPage = () => {
                       {isComplete && (
                         <div className="absolute inset-0 bg-slate-950/70 rounded-2xl flex items-center justify-center text-white/75 text-sm">
                           Relay is complete (6/6)
+                        </div>
+                      )}
+                      {lockMessage && (
+                        <div className="mt-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-sm">
+                          {lockMessage}
                         </div>
                       )}
                     </div>
@@ -826,6 +909,9 @@ const PostDetailPage = () => {
                   )}
                 </button>
               </div>
+            </div>
+            <div className="mb-6 text-base font-semibold text-white text-center bg-gradient-to-r from-pink-600/30 to-purple-600/30 border border-purple-400/40 rounded-xl px-4 py-3">
+              Share your referral code too — both you and your friend get 50 credits!
             </div>
             <div className="mb-6">
               <label className="text-sm font-medium text-gray-300 mb-3 block">Share via</label>
