@@ -9,6 +9,12 @@ import { useAuth } from '../context/AuthContext';
 import { generationService } from '../services/generation.service';
 import api from '../services/api';
 
+const stripSystemPrompt = (text = '') => {
+  if (!text) return text;
+  const marker = 'Continue with this picture.';
+  return text.startsWith(marker) ? text.slice(marker.length).trimStart() : text;
+};
+
 // Mock data for local testing to avoid 404/login when using mock ids
 
 const mockPosts = {
@@ -673,7 +679,7 @@ const PostDetailPage = () => {
                           post?.description;
                         return promptText ? (
                           <div className="mt-2 text-sm text-white/85 max-h-24 overflow-auto">
-                            {promptText}
+                            {stripSystemPrompt(promptText)}
                           </div>
                         ) : null;
                       })()}
