@@ -93,10 +93,13 @@ const PostDetailPage = () => {
   const [relayPrompt, setRelayPrompt] = useState('');
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [latestResult, setLatestResult] = useState(null);
+  const [results, setResults] = useState([]);
+  const [currentResultIndex, setCurrentResultIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
   const [lastUsedPrompt, setLastUsedPrompt] = useState('');
+  const [overlayPrompt, setOverlayPrompt] = useState('');
+  const swipeStartXRef = useRef(null);
   const [activeDraft, setActiveDraft] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -127,6 +130,26 @@ const PostDetailPage = () => {
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
+
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      swipeStartXRef.current = e.touches[0].clientX;
+    }
+  };
+
+  const handleTouchEnd = (e, length = 0, onPrev = () => {}, onNext = () => {}) => {
+    if (!swipeStartXRef.current) return;
+    const endX = e.changedTouches?.[0]?.clientX;
+    const diff = endX - swipeStartXRef.current;
+    swipeStartXRef.current = null;
+    const threshold = 40;
+    if (Math.abs(diff) < threshold || length < 2) return;
+    if (diff < 0) {
+      onNext();
+    } else {
+      onPrev();
+    }
+  };
 
   // Poll for new relay steps so users see updates if someone else just added one
   useEffect(() => {
@@ -407,7 +430,6 @@ const PostDetailPage = () => {
     if (pollRef.current) clearTimeout(pollRef.current);
     setIsGenerating(true);
     setGenError('');
-    setLatestResult({ status: 'pending', title: 'Generating next panel...' });
 
     const poll = async (delayMs = 4000) => {
       try {
@@ -434,13 +456,22 @@ const PostDetailPage = () => {
           setIsGenerating(false);
 
           if (imageUrl) {
-            setLatestResult({
-              status: 'done',
-              title: job.prompt,
-              image: imageUrl,
-              mediaId: job.result_media_id,
+            const cleaned = stripSystemPrompt(job.prompt || '');
+            setResults((prev) => {
+              const next = [
+                ...prev,
+                {
+                  status: 'done',
+                  title: job.prompt,
+                  prompt: cleaned,
+                  image: imageUrl,
+                  mediaId: job.result_media_id,
+                },
+              ];
+              setCurrentResultIndex(next.length - 1);
+              return next;
             });
-            setLastUsedPrompt(stripSystemPrefix(job.prompt || lastUsedPrompt || relayPrompt));
+            setLastUsedPrompt(cleaned || lastUsedPrompt || relayPrompt);
             loadPost();
             setShowPreview(true);
           } else {
@@ -459,17 +490,26 @@ const PostDetailPage = () => {
               fallbackPost?.original_url;
 
               if (fallbackUrl) {
-                setLatestResult({
-                  status: 'done',
-                  title: job.prompt,
-                  image: resolveUrl(fallbackUrl),
-                  mediaId: refreshedLast.output_media_id || job.result_media_id,
+                const cleaned = stripSystemPrompt(job.prompt || '');
+                const resolved = resolveUrl(fallbackUrl);
+                setResults((prev) => {
+                  const next = [
+                    ...prev,
+                    {
+                      status: 'done',
+                      title: job.prompt,
+                      prompt: cleaned,
+                      image: resolved,
+                      mediaId: refreshedLast.output_media_id || job.result_media_id,
+                    },
+                  ];
+                  setCurrentResultIndex(next.length - 1);
+                  return next;
                 });
-                setLastUsedPrompt(stripSystemPrefix(job.prompt || lastUsedPrompt || relayPrompt));
+                setLastUsedPrompt(cleaned || lastUsedPrompt || relayPrompt);
                 setShowPreview(true);
               } else {
                 setGenError('Generation completed but no image returned.');
-                setLatestResult(null);
                 setShowPreview(false);
             }
           }
@@ -496,7 +536,7 @@ const PostDetailPage = () => {
     poll();
   };
 
-  const runInlineRelay = async (promptText) => {
+  const runInlineRelay = async (promptText, stayInModal = false) => {
     if (!promptText.trim()) {
       alert('Please enter a prompt');
       return;
@@ -511,7 +551,7 @@ const PostDetailPage = () => {
     setLockMessage('');
     setIsGenerating(true);
     setGenError('');
-    setLatestResult(null);
+    setShowPreview(stayInModal);
     try {
       const res = await handleRelayDraft(promptText);
       if (res?.jobId) {
@@ -553,26 +593,31 @@ const PostDetailPage = () => {
     );
   }
 
+  const currentResult = results[currentResultIndex];
+
   const handlePublishGenerated = async () => {
+    const currentResult = results[currentResultIndex];
     if (!activeDraft?.sessionId || !activeDraft?.draftId) {
       setShowPreview(false);
-      setLatestResult(null);
       return;
     }
+    if (!currentResult) return;
     setIsPublishing(true);
     try {
-      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {});
+      // Avoid pushing long prompt into title; let backend default apply
+      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
+        title: null,
+      });
       await loadPost();
       setShowPreview(false);
-      setLatestResult(null);
+      setResults([]);
+      setCurrentResultIndex(0);
       setActiveDraft(null);
     } catch (err) {
       console.error('Publish action failed', err);
       const message = err?.response?.data?.error || 'Failed to publish this step.';
       if (err?.response?.status === 409) {
         alert(`${message}\nPlease regenerate from the latest image.`);
-        // Clear current preview/draft so user can try again
-        setLatestResult(null);
         setActiveDraft(null);
         setShowPreview(false);
         await loadPost();
@@ -607,7 +652,18 @@ const PostDetailPage = () => {
                   <div className="p-10 text-center text-gray-500">No media available</div>
                 ) : (
                   <>
-                    <div className="relative">
+                    <div
+                      className="relative"
+                      onTouchStart={handleTouchStart}
+                      onTouchEnd={(e) =>
+                        handleTouchEnd(
+                          e,
+                          imageSources.length,
+                          handlePrevImage,
+                          handleNextImage
+                        )
+                      }
+                    >
                       {imageSources[currentIndex]?.match(/\.(mp4|webm|mov)$/i) ? (
                         <div className="p-3 bg-slate-900/80">
                           <video
@@ -819,7 +875,7 @@ const PostDetailPage = () => {
       </div>
       </div>
       {/* Fullscreen preview overlay */}
-      {showPreview && latestResult && (
+      {showPreview && (currentResult || isGenerating) && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8">
           <div className="relative w-full max-w-5xl bg-gradient-to-r from-purple-900/70 via-indigo-900/60 to-pink-900/70 border border-white/15 rounded-3xl shadow-2xl shadow-purple-500/20 overflow-hidden">
             <button
@@ -829,58 +885,130 @@ const PostDetailPage = () => {
             >
               <X size={16} />
             </button>
-            <div className="p-6 space-y-4">
-              {latestResult.title && (
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto" style={{ touchAction: 'pan-y' }}>
+              {(currentResult?.title || isGenerating) && (
                 <p className="text-white font-semibold text-lg">
-                  {stripSystemPrefix(latestResult.title)}
+                  {currentResult?.title ? stripSystemPrefix(currentResult.title) : 'Generating...'}
                 </p>
               )}
-              {latestResult.status === 'pending' && (
-                <div className="flex flex-col items-center justify-center py-12 gap-3 text-white/80">
-                  <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  <p>Generating</p>
-                </div>
-              )}
-              {latestResult.image && (
-                <div className="w-full max-h-[65vh] bg-black/20 rounded-2xl overflow-hidden flex items-center justify-center">
-                  <img
-                    src={latestResult.image}
-                    alt="Generated preview"
-                    className="max-h-[60vh] max-w-full object-contain"
-                  />
+              {results.length > 0 && currentResult?.image && (
+                <div
+                  className="w-full max-h-[65vh] bg-black/20 rounded-2xl overflow-hidden flex items-center justify-center relative"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={(e) =>
+                    handleTouchEnd(
+                      e,
+                      results.length,
+                      () => setCurrentResultIndex((idx) => (idx - 1 + results.length) % results.length),
+                      () => setCurrentResultIndex((idx) => (idx + 1) % results.length)
+                    )
+                  }
+                >
+                  {(isGenerating || currentResult?.status === 'pending') && (
+                    <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white/90">
+                      <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      <p className="font-semibold">Generating</p>
+                    </div>
+                  )}
+                  {results.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentResultIndex((idx) => (idx - 1 + results.length) % results.length)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        aria-label="Previous result"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        onClick={() => setCurrentResultIndex((idx) => (idx + 1) % results.length)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        aria-label="Next result"
+                      >
+                        ›
+                      </button>
+                    </>
+                  )}
+                  {currentResult.image && (
+                    <img
+                      src={currentResult.image}
+                      alt="Generated preview"
+                      className="max-h-[60vh] max-w-full object-contain"
+                    />
+                  )}
+                  {results.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                      {results.map((_, idx) => (
+                        <span
+                          key={idx}
+                          onClick={() => setCurrentResultIndex(idx)}
+                          className={`w-2 h-2 rounded-full cursor-pointer ${idx === currentResultIndex ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {genError && <p className="text-red-200 text-sm">{genError}</p>}
-              {latestResult.status === 'done' && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={handlePublishGenerated}
-                    disabled={isPublishing}
-                    className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
-                  >
-                    {isPublishing ? 'Publishing...' : 'Continue the rally with this image'}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const nextPrompt =
-                        lastUsedPrompt ||
-                        stripSystemPrefix(latestResult.title || '') ||
-                        relayPrompt;
-                      if (nextPrompt) {
-                        runInlineRelay(nextPrompt);
-                      } else {
-                        setIsGenerating(false);
-                      }
-                      setActiveDraft(null);
-                      setLatestResult(null);
-                      setShowPreview(false);
-                    }}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
-                  >
-                    Generate another with this prompt
-                  </button>
+              {currentResult?.status === 'done' && (
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handlePublishGenerated}
+                      disabled={isPublishing}
+                      className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+                    >
+                      {isPublishing ? 'Publishing...' : 'Continue the rally with this image'}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const nextPrompt =
+                          lastUsedPrompt ||
+                          stripSystemPrefix(currentResult.title || '') ||
+                          relayPrompt;
+                        if (nextPrompt) {
+                          runInlineRelay(nextPrompt, true);
+                        } else {
+                          setIsGenerating(false);
+                        }
+                        setActiveDraft(null);
+                        // keep preview open
+                      }}
+                      className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+                    >
+                      Generate another with this prompt
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <textarea
+                      value={overlayPrompt}
+                      onChange={(e) => setOverlayPrompt(e.target.value)}
+                      placeholder="Enter a new prompt"
+                      className="flex-1 min-h-[100px] px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400/60 resize-none overflow-y-auto"
+                      style={{ touchAction: 'pan-y' }}
+                      disabled={isGenerating}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const next =
+                          overlayPrompt.trim() ||
+                          stripSystemPrompt(currentResult.title || '') ||
+                          relayPrompt;
+                        if (next) {
+                          runInlineRelay(next, true);
+                          setOverlayPrompt('');
+                          // keep preview open
+                        }
+                      }}
+                      disabled={isGenerating}
+                      className="w-12 h-12 rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow disabled:opacity-60 flex items-center justify-center"
+                    >
+                      <Wand2 size={18} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

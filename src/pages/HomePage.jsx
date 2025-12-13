@@ -28,7 +28,10 @@ const HomePage = () => {
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
-  const [latestResult, setLatestResult] = useState(null);
+  const [results, setResults] = useState([]);
+  const [currentResultIndex, setCurrentResultIndex] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
+  const [overlayPrompt, setOverlayPrompt] = useState('');
   const pollRef = useRef(null);
   const [activeDraft, setActiveDraft] = useState(null);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -38,6 +41,7 @@ const HomePage = () => {
   const [floatingHeight, setFloatingHeight] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeRelay, setActiveRelay] = useState(null);
+  const swipeStartXRef = useRef(null);
 
   useEffect(() => {
     loadPosts(true);
@@ -218,6 +222,28 @@ const HomePage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isExpanded, prompt]);
 
+  const currentResult = results[currentResultIndex] || null;
+
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      swipeStartXRef.current = e.touches[0].clientX;
+    }
+  };
+
+  const handleTouchEnd = (e, length = 0) => {
+    if (!swipeStartXRef.current) return;
+    const endX = e.changedTouches?.[0]?.clientX;
+    const diff = endX - swipeStartXRef.current;
+    swipeStartXRef.current = null;
+    const threshold = 40;
+    if (Math.abs(diff) < threshold || length < 2) return;
+    if (diff < 0) {
+      setCurrentResultIndex((idx) => (idx + 1) % length);
+    } else {
+      setCurrentResultIndex((idx) => (idx - 1 + length) % length);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -230,13 +256,13 @@ const HomePage = () => {
     return `http://localhost:3000${url}`;
   };
 
-  const startJobPolling = (jobId) => {
+  const startJobPolling = (jobId, stayInModal = false) => {
     if (!jobId) return;
     if (pollRef.current) clearInterval(pollRef.current);
 
     setIsGenerating(true);
     setGenError('');
-    setLatestResult({ status: 'pending', title: 'Generating preview...' });
+    setShowPreview(stayInModal);
 
     pollRef.current = setInterval(async () => {
       try {
@@ -250,11 +276,21 @@ const HomePage = () => {
           pollRef.current = null;
         }
         if (job.status === 'completed' && job.result_url) {
-          setLatestResult({
-            status: 'done',
-            title: job.prompt,
-            image: job.result_url,
-            mediaId: job.result_media_id,
+          const cleanedPrompt = job.prompt;
+          setResults((prev) => {
+            const next = [
+              ...prev,
+              {
+                status: 'done',
+                title: job.prompt,
+                prompt: cleanedPrompt,
+                image: job.result_url,
+                mediaId: job.result_media_id,
+              },
+            ];
+            setCurrentResultIndex(next.length - 1);
+            setShowPreview(true);
+            return next;
           });
           setIsGenerating(false);
           clearInterval(pollRef.current);
@@ -274,17 +310,24 @@ const HomePage = () => {
   };
 
   const handlePublishGenerated = async () => {
+    const currentResult = results[currentResultIndex];
     if (!activeDraft?.sessionId || !activeDraft?.draftId) {
       setIsExpanded(false);
       return;
     }
+    if (!currentResult) return;
     setIsPublishing(true);
     try {
-      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {});
+      // Avoid long prompt hitting varchar limit; let backend apply default title
+      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
+        title: null,
+      });
       await loadPosts(true);
       setIsExpanded(false);
-      setLatestResult(null);
+      setResults([]);
+      setCurrentResultIndex(0);
       setActiveDraft(null);
+      setShowPreview(false);
     } catch (err) {
       console.error('Publish failed', err);
       alert(err.response?.data?.error || 'Failed to publish this image, please try again.');
@@ -318,7 +361,7 @@ const HomePage = () => {
     alert('Image upload coming soon.');
   };
 
-  const handleCreateDraft = async (overridePrompt) => {
+  const handleCreateDraft = async (overridePrompt, stayInModal = false) => {
     if (overridePrompt && typeof overridePrompt !== 'string') {
       overridePrompt.preventDefault?.();
       overridePrompt.stopPropagation?.();
@@ -338,8 +381,16 @@ const HomePage = () => {
     setCreatingDraft(true);
     setIsGenerating(true);
     setGenError('');
-    setLatestResult(null);
     setActiveDraft(null);
+    if (stayInModal) {
+      setShowPreview(true);
+    } else {
+      setShowPreview(false);
+    }
+    if (!stayInModal) {
+      setResults([]);
+      setCurrentResultIndex(0);
+    }
     setPrompt(promptToUse);
     try {
       const sessionRes = await relayService.createSession();
@@ -353,7 +404,7 @@ const HomePage = () => {
       const jobId = draftRes.data?.data?.job?.id;
       const draftId = draftRes.data?.data?.draft?.id;
       setActiveDraft({ sessionId, draftId, jobId });
-      startJobPolling(jobId);
+      startJobPolling(jobId, stayInModal);
       setPrompt('');
       setInputMediaId(null);
     } catch (error) {
@@ -374,7 +425,8 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 relative overflow-hidden">
+    <>
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 relative overflow-hidden">
       {/* Ambient blobs */}
       <div className="pointer-events-none absolute inset-0 opacity-60">
         <div className="absolute -top-10 -left-10 w-96 h-96 bg-pink-500/30 blur-3xl rounded-full" />
@@ -383,30 +435,33 @@ const HomePage = () => {
       </div>
 
       <main className="flex-1">
-        {/* Compact hero */}
-        <div className="relative max-w-6xl mx-auto px-4 pt-16 pb-6">
-          <div className="flex flex-col gap-3 items-center text-center">
+        {/* Hero block (aligned with MeowStars style) */}
+        <div className="relative max-w-5xl mx-auto px-4 pt-16 pb-2">
+          <div className="text-center mb-4 flex flex-col items-center gap-2">
             <div className="text-sm uppercase tracking-widest text-purple-100/80">MeowVerse Relay</div>
             <h1 className="text-5xl sm:text-6xl font-black leading-tight">
               <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
                 MeowMents
               </span>
             </h1>
-            <p className="text-lg sm:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-              Dive into the greatest relays
+            <p className="text-lg sm:text-xl text-white leading-tight">
+              Start with a moment. Let others continue the story.
+            </p>
+            <p className="text-lg sm:text-xl text-gray-200 max-w-3xl mx-auto leading-tight -mt-1">
+              A dream, a thought, a scene — anything worth sharing.
             </p>
           </div>
         </div>
 
         {/* Tabs as sliding toggle */}
-        <div className="relative max-w-6xl mx-auto px-4 pb-8">
-          <div className="flex items-center justify-center mb-6">
-            <div className="relative flex bg-white/10 border border-white/20 rounded-full p-1 shadow-lg backdrop-blur overflow-hidden">
+        <div className="relative max-w-6xl mx-auto px-4 pb-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="relative inline-flex items-center w-[200px] h-12 bg-white/5 border border-white/25 rounded-full px-2 shadow-lg backdrop-blur-lg overflow-hidden">
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative z-10 px-5 py-2 rounded-full font-semibold transition-colors ${
+                  className={`relative z-10 flex-1 px-0 py-2 rounded-full font-semibold leading-none text-center transition-colors ${
                     activeTab === tab.key ? 'text-slate-900' : 'text-white/80'
                   }`}
                 >
@@ -414,10 +469,11 @@ const HomePage = () => {
                 </button>
               ))}
               <div
-                className="absolute top-[3px] bottom-[3px] rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 transition-all duration-200 shadow-md"
+                className="absolute inset-y-1 rounded-full bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 transition-all duration-200 shadow-md"
                 style={{
-                  width: 'calc(50% - 6px)',
-                  left: activeTab === 'popular' ? '3px' : 'calc(50% + 3px)',
+                  width: 'calc(50% - 4px)',
+                  transform: activeTab === 'popular' ? 'translateX(0%)' : 'translateX(100%)',
+                  left: '4px',
                 }}
               />
             </div>
@@ -592,76 +648,13 @@ const HomePage = () => {
           ref={floatingRef}
           className={`relative w-full max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-purple-900/70 via-slate-900/70 to-pink-900/70 backdrop-blur-2xl border border-white/15 shadow-[0_20px_60px_-25px_rgba(168,85,247,0.7)] pointer-events-auto transition-all duration-200 ease-out origin-center overflow-hidden transform ${
             isExpanded
-              ? `p-5 ${latestResult?.image ? 'min-h-[320px]' : 'h-[150px]'} scale-100`
+              ? `p-5 ${results.length > 0 ? 'min-h-[320px]' : 'h-[150px]'} scale-100`
               : 'p-3 h-[68px] scale-95'
           }`}
           onClick={() => setIsExpanded(true)}
         >
           {isExpanded ? (
             <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto pr-1">
-              {/* Inline generation result/preview */}
-              {latestResult && (
-                <div className="mb-3 rounded-2xl bg-black/30 border border-white/10 p-3 relative">
-                  <button
-                    onClick={() => setLatestResult(null)}
-                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80"
-                    aria-label="Close preview"
-                  >
-                    ✕
-                  </button>
-                  {latestResult.status === 'pending' ? (
-                    <div className="flex flex-col items-center justify-center py-6 gap-3">
-                      <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                      <p className="text-white/80 font-semibold">Generating...</p>
-                    </div>
-                  ) : (
-                    <>
-                      {latestResult.title && (
-                        <p className="text-white font-semibold text-base">{latestResult.title}</p>
-                      )}
-                    </>
-                  )}
-                  {latestResult.image && (
-                    <img
-                      src={latestResult.image}
-                      alt="Preview"
-                      className="mt-2 w-full rounded-xl object-contain max-h-96"
-                    />
-                  )}
-                  {genError && <p className="text-sm text-red-200 mt-1">{genError}</p>}
-                  {latestResult.status === 'done' && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
-                        onClick={handlePublishGenerated}
-                        disabled={isPublishing}
-                      >
-                        {isPublishing ? 'Publishing...' : 'Start the rally with this image'}
-                      </button>
-                      <button
-                        className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const fallbackPrompt =
-                            prompt ||
-                            latestResult.title ||
-                            (activeRelay?.lastStep?.prompt_full ?? '');
-                          if (!fallbackPrompt) {
-                            alert('Please enter a prompt');
-                            return;
-                          }
-                          setLatestResult(null);
-                          setIsExpanded(true);
-                          handleCreateDraft(fallbackPrompt); // rerun generation with selected prompt
-                        }}
-                      >
-                        Generate another with this prompt
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
               {activeRelay && activeRelay.lastStep ? (
                 <div className="mb-2 flex items-center gap-3 text-sm text-white/80">
                   <div className="flex items-center gap-2">
@@ -681,12 +674,8 @@ const HomePage = () => {
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder={
-                    latestResult?.status === 'done' && latestResult?.image
-                      ? 'Tweak the prompt below if you want a different vibe.'
-                      : 'Meanwhile in the MeowVerse… What’s the next scene? You can write in any language.'
-                  }
-                  className="w-full min-h-[96px] rounded-2xl px-5 pt-4 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none transition-opacity"
+                  placeholder={`Start with a moment — a dream, a thought, a scene, or something you want to share.\nOthers will continue this moment as an interactive story.`}
+                  className="w-full min-h-[96px] rounded-2xl px-5 pt-1 pb-6 text-white placeholder:text-white/70 focus:outline-none resize-none bg-transparent border-none transition-opacity"
                   style={{
                     color: '#fff',
                     opacity: isGenerating || creatingDraft ? 0.6 : 1,
@@ -732,7 +721,7 @@ const HomePage = () => {
               <div className="flex-1 text-center text-sm sm:text-base font-semibold">
                 {isGenerating || creatingDraft
                   ? 'Generating...'
-                  : '😼 Meanwhile in the MeowVerse… What’s the next scene? 😼'}
+                  : '😼 Start with a moment. Let others continue the story. 😼'}
               </div>
               <div className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 opacity-70" />
@@ -742,6 +731,137 @@ const HomePage = () => {
         </div>
       </div>
     </div>
+
+      {/* Preview overlay for generations */}
+      {showPreview && (currentResult || isGenerating) && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8">
+          <div className="relative w-full max-w-5xl bg-gradient-to-r from-purple-900/70 via-indigo-900/60 to-pink-900/70 border border-white/15 rounded-3xl shadow-2xl shadow-purple-500/20 overflow-hidden">
+            <button
+              onClick={() => setShowPreview(false)}
+              className="absolute top-3 right-3 text-white/80 hover:text-white bg-white/10 rounded-full p-2"
+              aria-label="Close preview"
+            >
+              ✕
+            </button>
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {(currentResult?.title || isGenerating) && (
+                <p className="text-white font-semibold text-lg">
+                  {currentResult?.title || 'Generating...'}
+                </p>
+              )}
+              {results.length > 0 && currentResult?.image && (
+                <div
+                  className="w-full max-h-[65vh] bg-black/20 rounded-2xl overflow-hidden flex items-center justify-center relative"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={(e) => handleTouchEnd(e, results.length)}
+                >
+                  {(isGenerating || currentResult?.status === 'pending') && (
+                    <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white/90">
+                      <div className="w-12 h-12 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      <p className="font-semibold">Generating</p>
+                    </div>
+                  )}
+                  {results.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentResultIndex((idx) => (idx - 1 + results.length) % results.length)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        aria-label="Previous result"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        onClick={() => setCurrentResultIndex((idx) => (idx + 1) % results.length)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        aria-label="Next result"
+                      >
+                        ›
+                      </button>
+                    </>
+                  )}
+                  <img
+                    src={currentResult.image}
+                    alt="Generated preview"
+                    className="max-h-[60vh] max-w-full object-contain"
+                  />
+                  {results.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                      {results.map((_, idx) => (
+                        <span
+                          key={idx}
+                          onClick={() => setCurrentResultIndex(idx)}
+                          className={`w-2 h-2 rounded-full cursor-pointer ${idx === currentResultIndex ? 'bg-white' : 'bg-white/40'}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {genError && <p className="text-red-200 text-sm">{genError}</p>}
+              {currentResult?.status === 'done' && (
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handlePublishGenerated}
+                      disabled={isPublishing}
+                      className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+                    >
+                      {isPublishing ? 'Publishing...' : 'Start the rally with this image'}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const fallbackPrompt =
+                          prompt ||
+                          currentResult.title ||
+                          '';
+                        if (!fallbackPrompt) {
+                          alert('Please enter a prompt');
+                          return;
+                        }
+                        handleCreateDraft(fallbackPrompt, true);
+                      }}
+                      className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+                    >
+                      Generate another with this prompt
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <textarea
+                      value={overlayPrompt}
+                      onChange={(e) => setOverlayPrompt(e.target.value)}
+                      placeholder="Enter a new prompt"
+                      className="flex-1 min-h-[100px] px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400/60 resize-none overflow-y-auto"
+                      style={{ touchAction: 'pan-y' }}
+                      disabled={isGenerating}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const next =
+                          overlayPrompt.trim() ||
+                          currentResult.title ||
+                          '';
+                        if (next) {
+                          handleCreateDraft(next, true);
+                          setOverlayPrompt('');
+                        }
+                      }}
+                      disabled={isGenerating}
+                      className="w-12 h-12 rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow disabled:opacity-60 flex items-center justify-center"
+                    >
+                      <Wand2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
