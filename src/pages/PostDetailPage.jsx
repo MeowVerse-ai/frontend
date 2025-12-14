@@ -15,74 +15,6 @@ const stripSystemPrompt = (text = '') => {
   return text.startsWith(marker) ? text.slice(marker.length).trimStart() : text;
 };
 
-// Mock data for local testing to avoid 404/login when using mock ids
-
-const mockPosts = {
-  mock1: {
-    id: 'mock1',
-    title: 'Mock Relay 1',
-    description: 'Single panel preview',
-    relay_session_id: 'session-mock1',
-    steps: [
-      { thumbnail_url: 'https://picsum.photos/seed/a/600/800', media_id: 'media-mock1-step1', user_prompt: 'A cozy cat', username: 'mockuser' },
-    ],
-    original_url: 'https://picsum.photos/seed/a/900/1200',
-    username: 'mockuser',
-    likes_count: 12,
-    comments_count: 3,
-    created_at: new Date().toISOString(),
-  },
-  mock2: {
-    id: 'mock2',
-    title: 'Mock Relay 2',
-    description: 'Two panels preview',
-    relay_session_id: 'session-mock2',
-    steps: [
-      { thumbnail_url: 'https://picsum.photos/seed/40/600/800', media_id: 'media-mock2-step1', user_prompt: 'Panel one prompt', username: 'mockuser' },
-      { thumbnail_url: 'https://picsum.photos/seed/41/600/800', media_id: 'media-mock2-step2', user_prompt: 'Panel two prompt', username: 'mockuser2' },
-    ],
-    original_url: 'https://picsum.photos/seed/40/900/1200',
-    username: 'mockuser',
-    likes_count: 28,
-    comments_count: 7,
-    created_at: new Date().toISOString(),
-  },
-  mock3: {
-    id: 'mock3',
-    title: 'Mock Relay 3',
-    description: 'Three panels preview',
-    relay_session_id: 'session-mock3',
-    steps: [
-      { thumbnail_url: 'https://picsum.photos/seed/b/600/800', media_id: 'media-mock3-step1', user_prompt: 'Opening scene', username: 'mockuser' },
-      { thumbnail_url: 'https://picsum.photos/seed/c/600/800', media_id: 'media-mock3-step2', user_prompt: 'Add a twist', username: 'mockuser2' },
-      { thumbnail_url: 'https://picsum.photos/seed/d/600/800', media_id: 'media-mock3-step3', user_prompt: 'Cliffhanger', username: 'mockuser3' },
-    ],
-    original_url: 'https://picsum.photos/seed/b/900/1200',
-    username: 'mockuser',
-    likes_count: 45,
-    comments_count: 10,
-    created_at: new Date().toISOString(),
-  },
-  mock6: {
-    id: 'mock6',
-    title: 'Mock Relay 6',
-    description: 'Six panels complete',
-    relay_session_id: 'session-mock6',
-    steps: Array.from({ length: 6 }, (_, i) => ({
-      thumbnail_url: `https://picsum.photos/seed/mock6-${i}/600/800`,
-      original_url: `https://picsum.photos/seed/mock6-${i}/900/1200`,
-      media_id: `media-mock6-step${i + 1}`,
-      user_prompt: `Panel ${i + 1} prompt example text that can be long...`,
-      username: `mockuser${i + 1}`,
-    })),
-    original_url: 'https://picsum.photos/seed/mock6-cover/900/1200',
-    username: 'mockuser',
-    likes_count: 120,
-    comments_count: 18,
-    created_at: new Date().toISOString(),
-  },
-};
-
 const PostDetailPage = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
@@ -99,7 +31,13 @@ const PostDetailPage = () => {
   const [genError, setGenError] = useState('');
   const [lastUsedPrompt, setLastUsedPrompt] = useState('');
   const [overlayPrompt, setOverlayPrompt] = useState('');
+  const [activeBaseMediaId, setActiveBaseMediaId] = useState(null);
+  const [mainSlide, setMainSlide] = useState({ offset: 0, animating: false });
+  const [previewSlide, setPreviewSlide] = useState({ offset: 0, animating: false });
+  const [mainDrag, setMainDrag] = useState({ active: false, offset: 0, width: 0 });
+  const [previewDrag, setPreviewDrag] = useState({ active: false, offset: 0, width: 0 });
   const swipeStartXRef = useRef(null);
+  const swipePreviewStartXRef = useRef(null);
   const [activeDraft, setActiveDraft] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -109,7 +47,6 @@ const PostDetailPage = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [viewTracked, setViewTracked] = useState(false);
   const [updateNotice, setUpdateNotice] = useState(false);
-  const isMock = postId.startsWith('mock');
 
   useEffect(() => {
     loadPost();
@@ -131,29 +68,79 @@ const PostDetailPage = () => {
     };
   }, []);
 
-  const handleTouchStart = (e) => {
+  const handleMainTouchStart = (e, widthGetter) => {
     if (e.touches && e.touches.length > 0) {
       swipeStartXRef.current = e.touches[0].clientX;
+      const w = widthGetter?.() || 0;
+      setMainDrag((prev) => ({ ...prev, active: true, offset: 0, width: w }));
     }
   };
 
-  const handleTouchEnd = (e, length = 0, onPrev = () => {}, onNext = () => {}) => {
-    if (!swipeStartXRef.current) return;
-    const endX = e.changedTouches?.[0]?.clientX;
-    const diff = endX - swipeStartXRef.current;
-    swipeStartXRef.current = null;
-    const threshold = 40;
-    if (Math.abs(diff) < threshold || length < 2) return;
-    if (diff < 0) {
-      onNext();
-    } else {
-      onPrev();
+  const handleMainTouchMove = (e) => {
+    if (!mainDrag.active || !swipeStartXRef.current) return;
+    const currentX = e.touches?.[0]?.clientX;
+    if (currentX === undefined) return;
+    const diff = currentX - swipeStartXRef.current;
+    setMainDrag((prev) => ({ ...prev, offset: diff }));
+  };
+
+  const handleMainTouchEnd = (length = 0) => {
+    if (!swipeStartXRef.current) {
+      setMainDrag({ active: false, offset: 0, width: mainDrag.width });
+      return;
     }
+    const diff = mainDrag.offset;
+    swipeStartXRef.current = null;
+    if (length < 2) {
+      setMainDrag({ active: false, offset: 0, width: mainDrag.width });
+      return;
+    }
+    const threshold = Math.max(40, (mainDrag.width || 0) * 0.15);
+    if (Math.abs(diff) < threshold) {
+      setMainDrag({ active: false, offset: 0, width: mainDrag.width });
+      return;
+    }
+    triggerMainSlide(diff < 0 ? 'next' : 'prev');
+  };
+
+  const handlePreviewTouchStart = (e, widthGetter) => {
+    if (e.touches && e.touches.length > 0) {
+      swipePreviewStartXRef.current = e.touches[0].clientX;
+      const w = widthGetter?.() || 0;
+      setPreviewDrag((prev) => ({ ...prev, active: true, offset: 0, width: w }));
+    }
+  };
+
+  const handlePreviewTouchMove = (e) => {
+    if (!previewDrag.active || !swipePreviewStartXRef.current) return;
+    const currentX = e.touches?.[0]?.clientX;
+    if (currentX === undefined) return;
+    const diff = currentX - swipePreviewStartXRef.current;
+    setPreviewDrag((prev) => ({ ...prev, offset: diff }));
+  };
+
+  const handlePreviewTouchEnd = (length = 0) => {
+    if (!swipePreviewStartXRef.current) {
+      setPreviewDrag({ active: false, offset: 0, width: previewDrag.width });
+      return;
+    }
+    const diff = previewDrag.offset;
+    swipePreviewStartXRef.current = null;
+    if (length < 2) {
+      setPreviewDrag({ active: false, offset: 0, width: previewDrag.width });
+      return;
+    }
+    const threshold = Math.max(40, (previewDrag.width || 0) * 0.15);
+    if (Math.abs(diff) < threshold) {
+      setPreviewDrag({ active: false, offset: 0, width: previewDrag.width });
+      return;
+    }
+    triggerPreviewSlide(diff < 0 ? 'next' : 'prev');
   };
 
   // Poll for new relay steps so users see updates if someone else just added one
   useEffect(() => {
-    if (isMock || !postId) return;
+    if (!postId) return;
     const interval = setInterval(async () => {
       try {
         const resp = await postsService.getById(postId);
@@ -170,30 +157,26 @@ const PostDetailPage = () => {
       }
     }, 25000);
     return () => clearInterval(interval);
-  }, [postId, isMock, post]);
+  }, [postId, post]);
 
   const loadPost = async () => {
     setLoading(true);
     try {
-      if (isMock && mockPosts[postId]) {
-        setPost(mockPosts[postId]);
-      } else {
-        console.log('🔍 Loading post ID:', postId);
-        const response = await postsService.getById(postId);
-        console.log('✅ Post response:', response);
-        // normalize API shapes: {success, data}, or {data}, or direct object
-        const fetchedPost =
-          response?.data?.data || // e.g. axios full response forwarded
-          response?.data || // e.g. {success, data: {...}}
-          response; // already the post object
-        setPost(fetchedPost);
-        window.__POST__ = fetchedPost;
+      console.log('🔍 Loading post ID:', postId);
+      const response = await postsService.getById(postId);
+      console.log('✅ Post response:', response);
+      // normalize API shapes: {success, data}, or {data}, or direct object
+      const fetchedPost =
+        response?.data?.data || // e.g. axios full response forwarded
+        response?.data || // e.g. {success, data: {...}}
+        response; // already the post object
+      setPost(fetchedPost);
+      window.__POST__ = fetchedPost;
 
-        // Track a view once per mount
-        if (!viewTracked) {
-          postsService.recordView(postId);
-          setViewTracked(true);
-        }
+      // Track a view once per mount
+      if (!viewTracked) {
+        postsService.recordView(postId);
+        setViewTracked(true);
       }
     } catch (error) {
       console.error('❌ Failed to load post:', error);
@@ -260,10 +243,6 @@ const PostDetailPage = () => {
       alert('This post is not linked to a relay session.');
       return;
     }
-    if (isMock) {
-      alert('Mock post: backend relay not available.');
-      return;
-    }
     if (!lastStepMediaId) {
       alert('No reference image found for this relay.');
       return;
@@ -322,6 +301,16 @@ const PostDetailPage = () => {
   const lastIndex = stepsArr.length ? stepsArr.length - 1 : 0;
   const lastStep = stepsArr[lastIndex];
   const lastStepMediaId = lastStep?.media_id || lastStep?.output_media_id || post?.media_id;
+  useEffect(() => {
+    const newBase = lastStepMediaId || null;
+    setActiveBaseMediaId((prev) => {
+      if (prev && newBase && prev !== newBase) {
+        setResults([]);
+        setCurrentResultIndex(0);
+      }
+      return newBase;
+    });
+  }, [lastStepMediaId]);
   const isComplete = stepsArr.length >= 6;
   const [lockMessage, setLockMessage] = useState('');
 
@@ -353,14 +342,39 @@ const PostDetailPage = () => {
     return urls;
   })();
 
-  const handlePrevImage = () => {
-    if (imageSources.length <= 1) return;
-    setCurrentIndex((prev) => (prev - 1 + imageSources.length) % imageSources.length);
+  const triggerMainSlide = (dir) => {
+    if (imageSources.length <= 1 || dir === null) return;
+    const target =
+      dir === 'next'
+        ? (currentIndex + 1) % imageSources.length
+        : (currentIndex - 1 + imageSources.length) % imageSources.length;
+    const startOffset = mainDrag.offset || 0;
+    setCurrentIndex(target);
+    setMainSlide({ offset: startOffset, animating: true });
+    requestAnimationFrame(() => setMainSlide({ offset: 0, animating: true }));
+    setTimeout(() => {
+      setMainSlide({ offset: 0, animating: false });
+      setMainDrag({ active: false, offset: 0, width: 0 });
+    }, 200);
   };
 
-  const handleNextImage = () => {
-    if (imageSources.length <= 1) return;
-    setCurrentIndex((prev) => (prev + 1) % imageSources.length);
+  const handlePrevImage = () => triggerMainSlide('prev');
+  const handleNextImage = () => triggerMainSlide('next');
+
+  const triggerPreviewSlide = (dir) => {
+    if (results.length <= 1 || dir === null) return;
+    const target =
+      dir === 'next'
+        ? (currentResultIndex + 1) % results.length
+        : (currentResultIndex - 1 + results.length) % results.length;
+    const startOffset = previewDrag.offset || 0;
+    setCurrentResultIndex(target);
+    setPreviewSlide({ offset: startOffset, animating: true });
+    requestAnimationFrame(() => setPreviewSlide({ offset: 0, animating: true }));
+    setTimeout(() => {
+      setPreviewSlide({ offset: 0, animating: false });
+      setPreviewDrag({ active: false, offset: 0, width: 0 });
+    }, 200);
   };
 
   const shareLink = typeof window !== 'undefined' ? window.location.href : '';
@@ -612,6 +626,7 @@ const PostDetailPage = () => {
       setShowPreview(false);
       setResults([]);
       setCurrentResultIndex(0);
+      setActiveBaseMediaId(lastStepMediaId || activeBaseMediaId);
       setActiveDraft(null);
     } catch (err) {
       console.error('Publish action failed', err);
@@ -642,27 +657,21 @@ const PostDetailPage = () => {
           <span>Back</span>
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
           {/* Left: Content */}
-          <div className="lg:col-span-2">
-                  <div className="relative group">
+          <div className="lg:col-span-2 h-full flex flex-col">
+                  <div className="relative group h-full flex flex-col">
               <div className="absolute -inset-1 bg-gradient-to-r from-pink-400/60 to-purple-500/60 rounded-3xl blur-xl opacity-50"></div>
-              <div className="relative bg-gradient-to-r from-purple-900/60 via-indigo-900/55 to-pink-800/60 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_20px_60px_-25px_rgba(168,85,247,0.6)]">
+              <div className="relative bg-gradient-to-r from-purple-900/60 via-indigo-900/55 to-pink-800/60 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_20px_60px_-25px_rgba(168,85,247,0.6)] h-full flex flex-col">
                 {imageSources.length === 0 ? (
                   <div className="p-10 text-center text-gray-500">No media available</div>
                 ) : (
                   <>
                     <div
                       className="relative"
-                      onTouchStart={handleTouchStart}
-                      onTouchEnd={(e) =>
-                        handleTouchEnd(
-                          e,
-                          imageSources.length,
-                          handlePrevImage,
-                          handleNextImage
-                        )
-                      }
+                      onTouchStart={(e) => handleMainTouchStart(e, () => e.currentTarget.clientWidth)}
+                      onTouchMove={handleMainTouchMove}
+                      onTouchEnd={() => handleMainTouchEnd(imageSources.length)}
                     >
                       {imageSources[currentIndex]?.match(/\.(mp4|webm|mov)$/i) ? (
                         <div className="p-3 bg-slate-900/80">
@@ -676,11 +685,27 @@ const PostDetailPage = () => {
                           />
                         </div>
                       ) : (
-                        <img
-                          src={resolveUrl(imageSources[currentIndex])}
-                          alt={post.title}
-                          className="w-full h-auto object-contain max-h-[80vh]"
-                        />
+                      <div className="relative w-full h-full min-h-[320px] md:min-h-[480px] overflow-hidden flex items-center justify-center">
+                          {(() => {
+                            const currentUrl = resolveUrl(imageSources[currentIndex]);
+                            const offset = mainDrag.active ? mainDrag.offset : mainSlide.offset;
+                            const transitioning = !mainDrag.active && mainSlide.animating;
+                            const currentStyle = {
+                              transition: transitioning ? 'transform 200ms ease' : 'none',
+                              transform: `translateX(${offset}px)`,
+                            };
+                            return (
+                              <>
+                                <img
+                                  src={currentUrl}
+                                  alt={post.title}
+                                  className="absolute inset-0 w-full h-full object-contain max-h-[80vh]"
+                                  style={currentStyle}
+                                />
+                              </>
+                            );
+                          })()}
+                        </div>
                       )}
 
                       {imageSources.length > 1 && (
@@ -774,7 +799,6 @@ const PostDetailPage = () => {
                           ? 'text-pink-400'
                           : 'text-gray-400 hover:text-pink-400'
                       }`}
-                      disabled={isMock}
                     >
                       <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} />
                       <span className="font-semibold">{formatNumber(post.likes_count || 0)}</span>
@@ -831,20 +855,20 @@ const PostDetailPage = () => {
                     <div className="flex-1 flex flex-col gap-3">
                       <div className="relative flex-1">
                         <textarea
-                          value={relayPrompt}
-                          onChange={(e) => setRelayPrompt(e.target.value)}
-                          placeholder="Describe the next panel... You can write in any language."
-                          className="w-full h-full bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl pl-4 pr-16 pt-4 pb-16 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[260px] shadow-inner shadow-purple-500/10"
-                          disabled={isComplete || isGenerating}
-                          aria-label="Relay prompt"
-                        />
+                      value={relayPrompt}
+                      onChange={(e) => setRelayPrompt(e.target.value)}
+                      placeholder="Describe how the story continues with your imagination. You can write in any language. It will only continue from the latest panel (not earlier ones). More detail gives better results."
+                      className="w-full h-full bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl pl-4 pr-16 pt-4 pb-16 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[260px] shadow-inner shadow-purple-500/10"
+                      disabled={isComplete || isGenerating}
+                      aria-label="Relay prompt"
+                    />
                         <div className="absolute bottom-3 right-3 flex items-center gap-2">
                           <button
-                            onClick={() => runInlineRelay(relayPrompt)}
+                          onClick={() => runInlineRelay(relayPrompt)}
                             disabled={isComplete || !lastStepMediaId || creatingDraft}
                             className={`w-11 h-11 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition ${isPromptFilled ? '' : 'opacity-40'}`}
-                            title={isMock ? 'Mock post' : 'Continue relay'}
-                            aria-label={isMock ? 'Mock post' : 'Continue relay'}
+                            title="Continue relay"
+                            aria-label="Continue relay"
                           >
                             <Wand2 size={18} />
                           </button>
@@ -894,15 +918,9 @@ const PostDetailPage = () => {
               {results.length > 0 && currentResult?.image && (
                 <div
                   className="w-full max-h-[65vh] bg-black/20 rounded-2xl overflow-hidden flex items-center justify-center relative"
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={(e) =>
-                    handleTouchEnd(
-                      e,
-                      results.length,
-                      () => setCurrentResultIndex((idx) => (idx - 1 + results.length) % results.length),
-                      () => setCurrentResultIndex((idx) => (idx + 1) % results.length)
-                    )
-                  }
+                  onTouchStart={(e) => handlePreviewTouchStart(e, () => e.currentTarget.clientWidth)}
+                  onTouchMove={handlePreviewTouchMove}
+                  onTouchEnd={() => handlePreviewTouchEnd(results.length)}
                 >
                   {(isGenerating || currentResult?.status === 'pending') && (
                     <div className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white/90">
@@ -913,14 +931,14 @@ const PostDetailPage = () => {
                   {results.length > 1 && (
                     <>
                       <button
-                        onClick={() => setCurrentResultIndex((idx) => (idx - 1 + results.length) % results.length)}
+                        onClick={() => triggerPreviewSlide('prev')}
                         className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
                         aria-label="Previous result"
                       >
                         ‹
                       </button>
                       <button
-                        onClick={() => setCurrentResultIndex((idx) => (idx + 1) % results.length)}
+                        onClick={() => triggerPreviewSlide('next')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
                         aria-label="Next result"
                       >
@@ -929,11 +947,24 @@ const PostDetailPage = () => {
                     </>
                   )}
                   {currentResult.image && (
-                    <img
-                      src={currentResult.image}
-                      alt="Generated preview"
-                      className="max-h-[60vh] max-w-full object-contain"
-                    />
+                    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                      {(() => {
+                        const offset = previewDrag.active ? previewDrag.offset : previewSlide.offset;
+                        const transitioning = !previewDrag.active && previewSlide.animating;
+                        const style = {
+                          transition: transitioning ? 'transform 200ms ease' : 'none',
+                          transform: `translateX(${offset}px)`,
+                        };
+                        return (
+                          <img
+                            src={currentResult.image}
+                            alt="Generated preview"
+                            className="max-h-[60vh] max-w-full object-contain"
+                            style={style}
+                          />
+                        );
+                      })()}
+                    </div>
                   )}
                   {results.length > 1 && (
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
@@ -984,7 +1015,7 @@ const PostDetailPage = () => {
                     <textarea
                       value={overlayPrompt}
                       onChange={(e) => setOverlayPrompt(e.target.value)}
-                      placeholder="Enter a new prompt"
+                      placeholder="Want a different vibe? Try a new idea to generate another image (it won’t edit the current one — it adds a new result)"
                       className="flex-1 min-h-[100px] px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400/60 resize-none overflow-y-auto"
                       style={{ touchAction: 'pan-y' }}
                       disabled={isGenerating}

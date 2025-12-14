@@ -41,7 +41,25 @@ const HomePage = () => {
   const [floatingHeight, setFloatingHeight] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeRelay, setActiveRelay] = useState(null);
+  const [attachedPreview, setAttachedPreview] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
   const swipeStartXRef = useRef(null);
+
+  const clearAttachment = () => {
+    if (attachedPreview && attachedPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(attachedPreview);
+    }
+    setAttachedPreview(null);
+    setInputMediaId(null);
+    setSelectedFile(null);
+  };
+
+  const handleClosePreview = () => {
+    if (attachedPreview || inputMediaId) {
+      clearAttachment();
+    }
+    setShowPreview(false);
+  };
 
   useEffect(() => {
     loadPosts(true);
@@ -65,96 +83,9 @@ const HomePage = () => {
         response?.posts ||
         response?.data ||
         [];
-      const mock = [
-        {
-          id: 'mock1',
-          title: 'Mock Relay 1',
-          description: 'Single panel preview',
-          relay_session_id: 'session-mock1',
-          steps: [
-            { thumbnail_url: 'https://picsum.photos/seed/a/600/800', media_id: 'media-mock1-step1' },
-          ],
-          max_steps: 6,
-          likes_count: 12,
-          comments_count: 3,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock3',
-          title: 'Mock Relay 3',
-          description: 'Three panels preview',
-          relay_session_id: 'session-mock3',
-          steps: [
-            { thumbnail_url: 'https://picsum.photos/seed/b/600/800', media_id: 'media-mock3-step1' },
-            { thumbnail_url: 'https://picsum.photos/seed/c/600/800', media_id: 'media-mock3-step2' },
-            { thumbnail_url: 'https://picsum.photos/seed/d/600/800', media_id: 'media-mock3-step3' },
-          ],
-          max_steps: 6,
-          likes_count: 45,
-          comments_count: 10,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock6',
-          title: 'Mock Relay Full',
-          description: 'Six panels preview',
-          relay_session_id: 'session-mock6',
-          steps: Array.from({ length: 6 }, (_, i) => ({
-            thumbnail_url: `https://picsum.photos/seed/${i + 10}/600/800`,
-            media_id: `media-mock6-step${i + 1}`,
-          })),
-          max_steps: 6,
-          likes_count: 100,
-          comments_count: 25,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock4',
-          title: 'Mock Relay 4',
-          description: 'Four panels preview',
-          relay_session_id: 'session-mock4',
-          steps: Array.from({ length: 4 }, (_, i) => ({
-            thumbnail_url: `https://picsum.photos/seed/${20 + i}/600/800`,
-            media_id: `media-mock4-step${i + 1}`,
-          })),
-          max_steps: 6,
-          likes_count: 64,
-          comments_count: 14,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock5',
-          title: 'Mock Relay 5',
-          description: 'Five panels preview',
-          relay_session_id: 'session-mock5',
-          steps: Array.from({ length: 5 }, (_, i) => ({
-            thumbnail_url: `https://picsum.photos/seed/${30 + i}/600/800`,
-            media_id: `media-mock5-step${i + 1}`,
-          })),
-          max_steps: 6,
-          likes_count: 82,
-          comments_count: 19,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'mock2',
-          title: 'Mock Relay 2',
-          description: 'Two panels preview',
-          relay_session_id: 'session-mock2',
-          steps: Array.from({ length: 2 }, (_, i) => ({
-            thumbnail_url: `https://picsum.photos/seed/${40 + i}/600/800`,
-            media_id: `media-mock2-step${i + 1}`,
-          })),
-          max_steps: 6,
-          likes_count: 28,
-          comments_count: 7,
-          created_at: new Date().toISOString(),
-        },
-      ];
 
       if (reset) {
-        const filled = data.length ? data : mock;
-        setPosts(filled);
+        setPosts(data);
         setPage(2);
       } else {
         setPosts((prev) => [...prev, ...data]);
@@ -327,6 +258,7 @@ const HomePage = () => {
       setResults([]);
       setCurrentResultIndex(0);
       setActiveDraft(null);
+      clearAttachment();
       setShowPreview(false);
     } catch (err) {
       console.error('Publish failed', err);
@@ -339,26 +271,22 @@ const HomePage = () => {
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Image too large (max 10MB).');
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only JPG, PNG, WebP, HEIC, and HEIF are supported.');
       return;
     }
-    setUploading(true);
-    try {
-      const uploadResult = await uploadService.uploadFile(file);
-      setInputMediaId(uploadResult.mediaId || uploadResult.id);
-    } catch (error) {
-      console.error('Upload failed', error);
-      alert('Upload failed, please retry.');
-      setInputMediaId(null);
-    } finally {
-      setUploading(false);
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image too large (max 5MB).');
+      return;
     }
-  };
-
-  const handleUploadDisabled = (e) => {
-    e.preventDefault();
-    alert('Image upload coming soon.');
+    if (attachedPreview && attachedPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(attachedPreview);
+    }
+    const localUrl = URL.createObjectURL(file);
+    setAttachedPreview(localUrl);
+    setSelectedFile(file);
+    setInputMediaId(null);
   };
 
   const handleCreateDraft = async (overridePrompt, stayInModal = false) => {
@@ -395,9 +323,30 @@ const HomePage = () => {
     try {
       const sessionRes = await relayService.createSession();
       const sessionId = sessionRes.data.data.id;
+      let mediaId = inputMediaId;
+      if (!mediaId && selectedFile) {
+        try {
+          setUploading(true);
+          const uploadResult = await uploadService.uploadFile(selectedFile);
+          mediaId = uploadResult.mediaId || uploadResult.id;
+          setInputMediaId(mediaId);
+          if (uploadResult.fileUrl) {
+            setAttachedPreview(uploadResult.fileUrl);
+          }
+        } catch (uploadError) {
+          console.error('Upload failed', uploadError);
+          alert('Upload failed, please retry.');
+          setUploading(false);
+          setCreatingDraft(false);
+          setIsGenerating(false);
+          return;
+        } finally {
+          setUploading(false);
+        }
+      }
       const draftRes = await relayService.createDraft(sessionId, {
         prompt: promptToUse,
-        input_media_id: inputMediaId || undefined,
+        input_media_id: mediaId || undefined,
       });
       // Refresh user credits after draft creation (cost deducted server-side)
       refreshUser?.();
@@ -406,7 +355,7 @@ const HomePage = () => {
       setActiveDraft({ sessionId, draftId, jobId });
       startJobPolling(jobId, stayInModal);
       setPrompt('');
-      setInputMediaId(null);
+      setSelectedFile(null);
     } catch (error) {
       console.error('Failed to create draft', error);
       const status = error.response?.status;
@@ -687,7 +636,6 @@ const HomePage = () => {
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
                 <label
                   className="w-10 h-10 rounded-2xl border border-white/25 hover:border-purple-200 transition flex items-center justify-center cursor-pointer text-white/80 bg-white/5"
-                  onClick={handleUploadDisabled}
                 >
                   {uploading ? (
                     <LoadingSpinner size="sm" />
@@ -695,13 +643,37 @@ const HomePage = () => {
                     <ImageIcon className="w-5 h-5" />
                   )}
                   <input
+                    id="floating-upload-input"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                     className="hidden"
                     onChange={handleUpload}
-                    disabled
                   />
                 </label>
+                {attachedPreview ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/20">
+                    <img
+                      src={attachedPreview}
+                      alt="Attached"
+                      className="w-10 h-10 rounded-lg object-cover border border-white/10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (attachedPreview && attachedPreview.startsWith('blob:')) {
+                          URL.revokeObjectURL(attachedPreview);
+                        }
+                        setInputMediaId(null);
+                        setAttachedPreview(null);
+                        setSelectedFile(null);
+                      }}
+                      className="w-8 h-8 rounded-full text-lg leading-none text-white/80 hover:text-white flex items-center justify-center bg-white/10 hover:bg-white/20 transition"
+                      aria-label="Remove attached image"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="absolute bottom-4 right-4">
                 <button
@@ -737,7 +709,7 @@ const HomePage = () => {
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8">
           <div className="relative w-full max-w-5xl bg-gradient-to-r from-purple-900/70 via-indigo-900/60 to-pink-900/70 border border-white/15 rounded-3xl shadow-2xl shadow-purple-500/20 overflow-hidden">
             <button
-              onClick={() => setShowPreview(false)}
+              onClick={handleClosePreview}
               className="absolute top-3 right-3 text-white/80 hover:text-white bg-white/10 rounded-full p-2"
               aria-label="Close preview"
             >
@@ -831,7 +803,7 @@ const HomePage = () => {
                     <textarea
                       value={overlayPrompt}
                       onChange={(e) => setOverlayPrompt(e.target.value)}
-                      placeholder="Enter a new prompt"
+                      placeholder="Want a different vibe? Try a new idea to generate another image (it won’t edit the current one — it adds a new result)"
                       className="flex-1 min-h-[100px] px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-400/60 resize-none overflow-y-auto"
                       style={{ touchAction: 'pan-y' }}
                       disabled={isGenerating}
