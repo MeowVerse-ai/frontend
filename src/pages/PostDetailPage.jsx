@@ -312,10 +312,11 @@ const PostDetailPage = () => {
     });
   }, [lastStepMediaId]);
   const isComplete = stepsArr.length >= 6;
+  const isPrivate = post?.visibility === 'private';
   const [lockMessage, setLockMessage] = useState('');
 
   const isPromptFilled = relayPrompt.trim().length > 0;
-  const canSubmit = !isComplete && !!lastStepMediaId && !creatingDraft;
+  const canSubmit = !isComplete && !isPrivate && !!lastStepMediaId && !creatingDraft;
   const participants = (() => {
     const seen = new Set();
     const list = [];
@@ -657,9 +658,9 @@ const PostDetailPage = () => {
           <span>Back</span>
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        <div className={`grid grid-cols-1 ${isPrivate ? '' : 'lg:grid-cols-3'} gap-8 items-stretch`}>
           {/* Left: Content */}
-          <div className="lg:col-span-2 h-full flex flex-col">
+          <div className={`${isPrivate ? 'lg:col-span-3' : 'lg:col-span-2'} h-full flex flex-col`}>
                   <div className="relative group h-full flex flex-col">
               <div className="absolute -inset-1 bg-gradient-to-r from-pink-400/60 to-purple-500/60 rounded-3xl blur-xl opacity-50"></div>
               <div className="relative bg-gradient-to-r from-purple-900/60 via-indigo-900/55 to-pink-800/60 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_20px_60px_-25px_rgba(168,85,247,0.6)] h-full flex flex-col">
@@ -673,6 +674,11 @@ const PostDetailPage = () => {
                       onTouchMove={handleMainTouchMove}
                       onTouchEnd={() => handleMainTouchEnd(imageSources.length)}
                     >
+                      {isPrivate && (
+                        <div className="absolute top-4 left-4 z-10 px-3 py-1 rounded-full bg-black/60 text-white text-xs font-semibold">
+                          Private — only you can view
+                        </div>
+                      )}
                       {imageSources[currentIndex]?.match(/\.(mp4|webm|mov)$/i) ? (
                         <div className="p-3 bg-slate-900/80">
                           <video
@@ -772,6 +778,7 @@ const PostDetailPage = () => {
           </div>
 
           {/* Right: Details & Comments */}
+          {!isPrivate && (
               <div className="lg:col-span-1 h-full">
             <div className="bg-gradient-to-r from-purple-900/60 via-indigo-900/55 to-pink-900/60 backdrop-blur-2xl rounded-3xl p-6 h-full flex flex-col shadow-[0_20px_60px_-25px_rgba(168,85,247,0.7)]">
               {/* Participants strip */}
@@ -855,17 +862,21 @@ const PostDetailPage = () => {
                     <div className="flex-1 flex flex-col gap-3">
                       <div className="relative flex-1">
                         <textarea
-                      value={relayPrompt}
-                      onChange={(e) => setRelayPrompt(e.target.value)}
-                      placeholder="Describe how the story continues with your imagination. You can write in any language. It will only continue from the latest panel (not earlier ones). More detail gives better results."
-                      className="w-full h-full bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl pl-4 pr-16 pt-4 pb-16 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[260px] shadow-inner shadow-purple-500/10"
-                      disabled={isComplete || isGenerating}
-                      aria-label="Relay prompt"
-                    />
+                        value={relayPrompt}
+                        onChange={(e) => setRelayPrompt(e.target.value)}
+                        placeholder={
+                          isPrivate
+                            ? 'This is a private post. Relays are disabled.'
+                            : 'Describe how the story continues with your imagination. You can write in any language. It will only continue from the latest panel (not earlier ones). More detail gives better results.'
+                        }
+                        className="w-full h-full bg-white/5 backdrop-blur-2xl border border-white/15 rounded-2xl pl-4 pr-16 pt-4 pb-16 text-white placeholder:text-white/75 focus:outline-none focus:border-purple-200 focus:ring-2 focus:ring-purple-400/40 resize-none min-h-[260px] shadow-inner shadow-purple-500/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={isComplete || isGenerating || isPrivate}
+                        aria-label="Relay prompt"
+                      />
                         <div className="absolute bottom-3 right-3 flex items-center gap-2">
                           <button
-                          onClick={() => runInlineRelay(relayPrompt)}
-                            disabled={isComplete || !lastStepMediaId || creatingDraft}
+                            onClick={() => runInlineRelay(relayPrompt)}
+                            disabled={isComplete || isPrivate || !lastStepMediaId || creatingDraft}
                             className={`w-11 h-11 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white flex items-center justify-center shadow-lg shadow-pink-500/30 transition ${isPromptFilled ? '' : 'opacity-40'}`}
                             title="Continue relay"
                             aria-label="Continue relay"
@@ -883,6 +894,11 @@ const PostDetailPage = () => {
                             Relay is complete (6/6)
                           </div>
                         )}
+                        {isPrivate && (
+                          <div className="absolute inset-0 bg-slate-950/70 rounded-2xl flex items-center justify-center text-white/75 text-sm text-center px-6">
+                            This is a private post. Relays are disabled.
+                          </div>
+                        )}
                       </div>
                       {lockMessage && (
                         <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-sm">
@@ -895,6 +911,7 @@ const PostDetailPage = () => {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
       </div>
@@ -1127,6 +1144,7 @@ const PostDetailPage = () => {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
     </>

@@ -21,10 +21,14 @@ export const generationService = {
     return await api.get(`/generation/jobs/${jobId}`);
   },
 
-  getHistory: async (page = 1, limit = 20) => {
+  getHistory: async (page = 1, limit = 20, visibility) => {
     return await api.get('/generation/history', {
-      params: { page, limit },
+      params: { page, limit, visibility },
     });
+  },
+
+  hideJob: async (jobId) => {
+    return await api.patch(`/generation/history/${jobId}/hide`);
   },
 
   cancelJob: async (jobId) => {

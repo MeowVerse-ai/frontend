@@ -252,6 +252,7 @@ const HomePage = () => {
       // Avoid long prompt hitting varchar limit; let backend apply default title
       await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
         title: null,
+        visibility: 'public',
       });
       await loadPosts(true);
       setIsExpanded(false);
@@ -263,6 +264,33 @@ const HomePage = () => {
     } catch (err) {
       console.error('Publish failed', err);
       alert(err.response?.data?.error || 'Failed to publish this image, please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleSavePrivate = async () => {
+    const currentResult = results[currentResultIndex];
+    if (!activeDraft?.sessionId || !activeDraft?.draftId) {
+      setIsExpanded(false);
+      return;
+    }
+    if (!currentResult) return;
+    setIsPublishing(true);
+    try {
+      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
+        title: null,
+        visibility: 'private',
+      });
+      setIsExpanded(false);
+      setResults([]);
+      setCurrentResultIndex(0);
+      setActiveDraft(null);
+      clearAttachment();
+      setShowPreview(false);
+    } catch (err) {
+      console.error('Save to private failed', err);
+      alert(err.response?.data?.error || 'Failed to save this image, please try again.');
     } finally {
       setIsPublishing(false);
     }
@@ -799,6 +827,17 @@ const HomePage = () => {
                       Generate another with this prompt
                     </button>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSavePrivate();
+                    }}
+                    disabled={isPublishing}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition text-center font-semibold"
+                  >
+                    {isPublishing ? 'Saving...' : 'Save to my private collection (only you can view)'}
+                  </button>
                   <div className="flex items-center gap-3">
                     <textarea
                       value={overlayPrompt}
