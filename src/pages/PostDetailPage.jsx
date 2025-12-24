@@ -378,6 +378,15 @@ const PostDetailPage = () => {
     }, 200);
   };
 
+  const goPreview = (dir) => {
+    if (results.length <= 1 || dir === null) return;
+    setCurrentResultIndex((idx) =>
+      dir === 'next' ? (idx + 1) % results.length : (idx - 1 + results.length) % results.length
+    );
+    setPreviewSlide({ offset: 0, animating: false });
+    setPreviewDrag((prev) => ({ ...prev, active: false, offset: 0 }));
+  };
+
   const shareLink = typeof window !== 'undefined' ? window.location.href : '';
   const shareText =
     `Come continue this MeowVerse relay with me! ${shareLink}`;
@@ -954,14 +963,14 @@ const PostDetailPage = () => {
                   {results.length > 1 && (
                     <>
                       <button
-                        onClick={() => triggerPreviewSlide('prev')}
+                        onClick={() => goPreview('prev')}
                         className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
                         aria-label="Previous result"
                       >
                         ‹
                       </button>
                       <button
-                        onClick={() => triggerPreviewSlide('next')}
+                        onClick={() => goPreview('next')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
                         aria-label="Next result"
                       >
