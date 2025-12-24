@@ -964,14 +964,14 @@ const PostDetailPage = () => {
                     <>
                       <button
                         onClick={() => goPreview('prev')}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition z-20 pointer-events-auto"
                         aria-label="Previous result"
                       >
                         ‹
                       </button>
                       <button
                         onClick={() => goPreview('next')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition z-20 pointer-events-auto"
                         aria-label="Next result"
                       >
                         ›
@@ -979,7 +979,7 @@ const PostDetailPage = () => {
                     </>
                   )}
                   {currentResult.image && (
-                    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                    <div className="relative z-0 w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
                       {(() => {
                         const offset = previewDrag.active ? previewDrag.offset : previewSlide.offset;
                         const transitioning = !previewDrag.active && previewSlide.animating;
