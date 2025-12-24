@@ -38,7 +38,7 @@ const PaymentSuccessPage = () => {
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          navigate('/dashboard');
+          navigate('/');
           return 0;
         }
         return prev - 1;
@@ -74,12 +74,12 @@ const PaymentSuccessPage = () => {
 
             {/* Redirect Info */}
             <p className="text-sm text-gray-400 mb-6">
-              Redirecting to dashboard in {countdown} seconds...
+              Redirecting to gallery in {countdown} seconds...
             </p>
 
             {/* Button */}
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/')}
               className="w-full px-8 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-xl font-semibold hover:scale-105 transition-transform"
             >
               Go to Dashboard Now

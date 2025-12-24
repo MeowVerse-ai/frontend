@@ -26,7 +26,7 @@ const LoginPage = () => {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid credentials');
     } finally {
@@ -46,7 +46,7 @@ const LoginPage = () => {
           localStorage.setItem('accessToken', result.data.accessToken);
           localStorage.setItem('refreshToken', result.data.refreshToken);
           setUser(result.data.user);
-          navigate('/dashboard');
+          navigate('/');
         } catch (err) {
           const errorMessage = err.response?.data?.error || 'Google login failed';
 
@@ -109,7 +109,7 @@ const LoginPage = () => {
       localStorage.setItem('refreshToken', result.data.refreshToken);
       setUser(result.data.user);
       setShowBetaCodeModal(false);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
     } finally {

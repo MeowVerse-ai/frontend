@@ -51,7 +51,7 @@ const RegisterPage = () => {
           localStorage.setItem('accessToken', result.data.accessToken);
           localStorage.setItem('refreshToken', result.data.refreshToken);
           setUser(result.data.user);
-          navigate('/dashboard');
+          navigate('/');
         } catch (err) {
           setError(err.response?.data?.error || 'Google registration failed');
         } finally {
@@ -132,7 +132,7 @@ const RegisterPage = () => {
         acceptedTerms,
         marketingConsent
       });
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       const message = err?.response?.data?.error || 'Registration failed';
       setError(message);

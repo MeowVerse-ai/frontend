@@ -60,7 +60,7 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" />;
 };
 
-// Public Route Component (redirect to dashboard if already logged in)
+// Public Route Component (redirect to gallery if already logged in)
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -72,7 +72,7 @@ const PublicRoute = ({ children }) => {
     );
   }
 
-  return !user ? children : <Navigate to="/dashboard" />;
+  return !user ? children : <Navigate to="/" />;
 };
 
 // Layout wrapper for pages that need Navbar + Footer
