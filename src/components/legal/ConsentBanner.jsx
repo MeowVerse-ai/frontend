@@ -16,7 +16,9 @@ const ConsentBanner = () => {
       const { version, accepted, expiresAt } = parsed || {};
       const expired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : false;
       if (expired) return true;
-      return version !== CONSENT_VERSION || !accepted;
+      if (version !== CONSENT_VERSION) return true;
+      // If we stored a choice (accept or reject), don't reshow until expiry/version change.
+      return typeof accepted !== 'boolean';
     } catch {
       return true;
     }
