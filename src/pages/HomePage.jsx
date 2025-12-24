@@ -419,9 +419,8 @@ const HomePage = () => {
 
       <main className="flex-1">
         {/* Hero block (aligned with MeowStars style) */}
-        <div className="relative max-w-5xl mx-auto px-4 pt-16 pb-2">
+        <div className="relative max-w-5xl mx-auto px-4 pt-24 pb-2">
           <div className="text-center mb-4 flex flex-col items-center gap-2">
-            <div className="text-sm uppercase tracking-widest text-purple-100/80">MeowVerse Relay</div>
             <h1 className="text-5xl sm:text-6xl font-black leading-tight">
               <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
                 MeowMents
