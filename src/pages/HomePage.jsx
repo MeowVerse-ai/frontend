@@ -187,7 +187,7 @@ const HomePage = () => {
     return `http://localhost:3000${url}`;
   };
 
-  const startJobPolling = (jobId, stayInModal = false) => {
+  const startJobPolling = (jobId, stayInModal = false, draftId) => {
     if (!jobId) return;
     if (pollRef.current) clearInterval(pollRef.current);
 
@@ -217,6 +217,7 @@ const HomePage = () => {
                 prompt: cleanedPrompt,
                 image: job.result_url,
                 mediaId: job.result_media_id,
+                draftId,
               },
             ];
             setCurrentResultIndex(next.length - 1);
@@ -247,10 +248,11 @@ const HomePage = () => {
       return;
     }
     if (!currentResult) return;
+    const draftIdToPublish = currentResult.draftId || activeDraft.draftId;
     setIsPublishing(true);
     try {
       // Avoid long prompt hitting varchar limit; let backend apply default title
-      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
+      await relayService.publishDraft(activeDraft.sessionId, draftIdToPublish, {
         title: null,
         visibility: 'public',
       });
@@ -276,9 +278,10 @@ const HomePage = () => {
       return;
     }
     if (!currentResult) return;
+    const draftIdToPublish = currentResult.draftId || activeDraft.draftId;
     setIsPublishing(true);
     try {
-      await relayService.publishDraft(activeDraft.sessionId, activeDraft.draftId, {
+      await relayService.publishDraft(activeDraft.sessionId, draftIdToPublish, {
         title: null,
         visibility: 'private',
       });
@@ -381,7 +384,7 @@ const HomePage = () => {
       const jobId = draftRes.data?.data?.job?.id;
       const draftId = draftRes.data?.data?.draft?.id;
       setActiveDraft({ sessionId, draftId, jobId });
-      startJobPolling(jobId, stayInModal);
+      startJobPolling(jobId, stayInModal, draftId);
       setPrompt('');
       setSelectedFile(null);
     } catch (error) {
