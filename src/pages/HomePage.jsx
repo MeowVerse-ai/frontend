@@ -187,7 +187,7 @@ const HomePage = () => {
     return `http://localhost:3000${url}`;
   };
 
-  const startJobPolling = (jobId, stayInModal = false, draftId) => {
+  const startJobPolling = (jobId, stayInModal = false, draftId, sessionId) => {
     if (!jobId) return;
     if (pollRef.current) clearInterval(pollRef.current);
 
@@ -218,6 +218,7 @@ const HomePage = () => {
                 image: job.result_url,
                 mediaId: job.result_media_id,
                 draftId,
+                sessionId,
               },
             ];
             setCurrentResultIndex(next.length - 1);
@@ -249,10 +250,11 @@ const HomePage = () => {
     }
     if (!currentResult) return;
     const draftIdToPublish = currentResult.draftId || activeDraft.draftId;
+    const sessionIdToPublish = currentResult.sessionId || activeDraft.sessionId;
     setIsPublishing(true);
     try {
       // Avoid long prompt hitting varchar limit; let backend apply default title
-      await relayService.publishDraft(activeDraft.sessionId, draftIdToPublish, {
+      await relayService.publishDraft(sessionIdToPublish, draftIdToPublish, {
         title: null,
         visibility: 'public',
       });
@@ -279,9 +281,10 @@ const HomePage = () => {
     }
     if (!currentResult) return;
     const draftIdToPublish = currentResult.draftId || activeDraft.draftId;
+    const sessionIdToPublish = currentResult.sessionId || activeDraft.sessionId;
     setIsPublishing(true);
     try {
-      await relayService.publishDraft(activeDraft.sessionId, draftIdToPublish, {
+      await relayService.publishDraft(sessionIdToPublish, draftIdToPublish, {
         title: null,
         visibility: 'private',
       });
@@ -384,7 +387,7 @@ const HomePage = () => {
       const jobId = draftRes.data?.data?.job?.id;
       const draftId = draftRes.data?.data?.draft?.id;
       setActiveDraft({ sessionId, draftId, jobId });
-      startJobPolling(jobId, stayInModal, draftId);
+      startJobPolling(jobId, stayInModal, draftId, sessionId);
       setPrompt('');
       setSelectedFile(null);
     } catch (error) {

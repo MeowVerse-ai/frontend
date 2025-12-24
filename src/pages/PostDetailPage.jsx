@@ -440,7 +440,7 @@ const PostDetailPage = () => {
     }
   };
 
-  const startJobPolling = (jobId, draftId) => {
+  const startJobPolling = (jobId, draftId, sessionId) => {
     if (!jobId) return;
     if (pollRef.current) clearTimeout(pollRef.current);
     setIsGenerating(true);
@@ -482,6 +482,7 @@ const PostDetailPage = () => {
                   image: imageUrl,
                   mediaId: job.result_media_id,
                   draftId,
+                  sessionId,
                 },
               ];
               setCurrentResultIndex(next.length - 1);
@@ -518,6 +519,7 @@ const PostDetailPage = () => {
                       image: resolved,
                       mediaId: refreshedLast.output_media_id || job.result_media_id,
                       draftId,
+                      sessionId,
                     },
                   ];
                   setCurrentResultIndex(next.length - 1);
@@ -572,7 +574,7 @@ const PostDetailPage = () => {
     try {
       const res = await handleRelayDraft(promptText);
       if (res?.jobId) {
-        startJobPolling(res.jobId, res?.draftId);
+        startJobPolling(res.jobId, res?.draftId, post?.relay_session_id);
         return;
       }
       // If no job returned (e.g., blocked/verification required), stop the loading state
@@ -620,10 +622,11 @@ const PostDetailPage = () => {
     }
     if (!currentResult) return;
     const draftIdToPublish = currentResult.draftId || activeDraft.draftId;
+    const sessionIdToPublish = currentResult.sessionId || activeDraft.sessionId;
     setIsPublishing(true);
     try {
       // Avoid pushing long prompt into title; let backend default apply
-      await relayService.publishDraft(activeDraft.sessionId, draftIdToPublish, {
+      await relayService.publishDraft(sessionIdToPublish, draftIdToPublish, {
         title: null,
       });
       await loadPost();
