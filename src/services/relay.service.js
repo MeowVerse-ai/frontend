@@ -1,8 +1,8 @@
 import api from './api';
 
 export const relayService = {
-  createSession: async () => {
-    return await api.post('/relay/sessions');
+  createSession: async (payload = {}) => {
+    return await api.post('/relay/sessions', payload);
   },
 
   listSessions: async () => {
@@ -31,5 +31,9 @@ export const relayService = {
 
   closeSession: async (sessionId) => {
     return await api.post(`/relay/sessions/${sessionId}/close`);
+  },
+
+  updateSession: async (sessionId, payload = {}) => {
+    return await api.patch(`/relay/sessions/${sessionId}`, payload);
   },
 };

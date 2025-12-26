@@ -44,6 +44,9 @@ const HomePage = () => {
   const [attachedPreview, setAttachedPreview] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const swipeStartXRef = useRef(null);
+  const [maxSteps, setMaxSteps] = useState(6);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [isUpdatingMaxSteps, setIsUpdatingMaxSteps] = useState(false);
 
   const clearAttachment = () => {
     if (attachedPreview && attachedPreview.startsWith('blob:')) {
@@ -242,6 +245,27 @@ const HomePage = () => {
     }, 2500);
   };
 
+  const handleMaxStepsChange = async (nextSteps) => {
+    if (nextSteps === maxSteps) return;
+    const prevSteps = maxSteps;
+    setMaxSteps(nextSteps);
+    if (!activeSessionId) return;
+    setIsUpdatingMaxSteps(true);
+    try {
+      const res = await relayService.updateSession(activeSessionId, { max_steps: nextSteps });
+      const updated = res.data?.data;
+      if (updated?.max_steps) {
+        setMaxSteps(updated.max_steps);
+      }
+      await loadPosts(true);
+    } catch (error) {
+      setMaxSteps(prevSteps);
+      alert(error.response?.data?.error || 'Failed to update relay size.');
+    } finally {
+      setIsUpdatingMaxSteps(false);
+    }
+  };
+
   const handlePublishGenerated = async () => {
     const currentResult = results[currentResultIndex];
     if (!activeDraft?.sessionId || !activeDraft?.draftId) {
@@ -355,8 +379,13 @@ const HomePage = () => {
     }
     setPrompt(promptToUse);
     try {
-      const sessionRes = await relayService.createSession();
-      const sessionId = sessionRes.data.data.id;
+      const sessionRes = await relayService.createSession({ max_steps: maxSteps });
+      const sessionData = sessionRes.data.data;
+      const sessionId = sessionData.id;
+      setActiveSessionId(sessionId);
+      if (sessionData.max_steps) {
+        setMaxSteps(sessionData.max_steps);
+      }
       let mediaId = inputMediaId;
       if (!mediaId && selectedFile) {
         try {
@@ -514,17 +543,17 @@ const HomePage = () => {
                         );
                       }
 
+                      const maxSteps = post.max_steps || 6;
                       const baseImages = sourceImages
                         .map(resolveUrl)
                         .filter(Boolean)
-                        .slice(0, 6);
+                        .slice(0, maxSteps);
+                      const coverImages = [...baseImages];
                       const fallback = resolveUrl(post.thumbnail_url || post.original_url);
                       const stepTotal =
                         post.step_count ??
                         post.steps_count ??
                         (post.step_thumbs?.length || steps.length || coverImages.length);
-
-                      const coverImages = [...baseImages];
 
                       if (coverImages.length === 0 && fallback) {
                         coverImages.push(fallback);
@@ -532,7 +561,10 @@ const HomePage = () => {
 
                       // pad missing images up to reported stepTotal using fallback/first image
                       const padSrc = coverImages[0] || fallback;
-                      while (coverImages.length < Math.min(Math.max(stepTotal, coverImages.length), 6)) {
+                      while (
+                        coverImages.length <
+                        Math.min(Math.max(stepTotal, coverImages.length), maxSteps)
+                      ) {
                         if (!padSrc) break;
                         coverImages.push(padSrc);
                       }
@@ -551,10 +583,12 @@ const HomePage = () => {
                       let gridRows = 2;
                       let expected = 4;
 
-                      if (stepTotal >= 4) {
-                        gridCols = 3;
-                        gridRows = 2;
-                        expected = 6;
+                      if (maxSteps === 6) {
+                        if (stepTotal >= 4) {
+                          gridCols = 3;
+                          gridRows = 2;
+                          expected = 6;
+                        }
                       }
 
                       const tiles = [...coverImages];
@@ -802,6 +836,40 @@ const HomePage = () => {
                   )}
                 </div>
               )}
+              <div className="flex items-center justify-between gap-3 text-xs text-white/80">
+                <div className="flex items-center gap-3">
+                  <span className="uppercase tracking-wide text-white/60">Relay Grid</span>
+                  <div className="inline-flex items-center rounded-full bg-white/10 p-1 border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => handleMaxStepsChange(4)}
+                      disabled={isUpdatingMaxSteps}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                        maxSteps === 4
+                          ? 'bg-white text-slate-900'
+                          : 'text-white/80 hover:text-white'
+                      }`}
+                    >
+                      4
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMaxStepsChange(6)}
+                      disabled={isUpdatingMaxSteps}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                        maxSteps === 6
+                          ? 'bg-white text-slate-900'
+                          : 'text-white/80 hover:text-white'
+                      }`}
+                    >
+                      6
+                    </button>
+                  </div>
+                </div>
+                <span className="text-[11px] text-white/60">
+                  {maxSteps === 4 ? 'Tighter pacing' : 'Full story arc'}
+                </span>
+              </div>
               {genError && <p className="text-red-200 text-sm">{genError}</p>}
               {currentResult?.status === 'done' && (
                 <div className="space-y-3">

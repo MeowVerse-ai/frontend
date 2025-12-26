@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { generationService } from '../services/generation.service';
+import { relayService } from '../services/relay.service';
 import Navbar from '../components/layout/Navbar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { Calendar, Trash2 } from 'lucide-react';
@@ -8,10 +10,12 @@ import { formatDate } from '../utils/helpers';
 import api from '../services/api';
 
 const DashboardPage = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingPostId, setDeletingPostId] = useState(null);
+  const [updatingRelayId, setUpdatingRelayId] = useState(null);
   const [activeView, setActiveView] = useState('public'); // public | private
 
   useEffect(() => {
@@ -75,6 +79,32 @@ const DashboardPage = () => {
   const handleImageClick = (job) => {
     if (job.post_id) {
       navigate(`/post/${job.post_id}`);
+    }
+  };
+
+  const canUpdateRelayGrid = (job) => {
+    if (!user) return false;
+    const stepNumber = Number(job.step_number || 0);
+    return (
+      !!job.relay_session_id &&
+      stepNumber === 1 &&
+      job.relay_owner_id === user.id
+    );
+  };
+
+  const handleRelayGridUpdate = async (job, nextSteps) => {
+    if (!job.relay_session_id) return;
+    const currentSteps = Number(job.relay_max_steps || 6);
+    if (currentSteps === nextSteps) return;
+    try {
+      setUpdatingRelayId(job.relay_session_id);
+      await relayService.updateSession(job.relay_session_id, { max_steps: nextSteps });
+      await loadHistory(activeView);
+    } catch (err) {
+      console.error('Failed to update relay grid', err);
+      alert(err.response?.data?.error || 'Failed to update relay grid.');
+    } finally {
+      setUpdatingRelayId(null);
     }
   };
 
@@ -154,6 +184,43 @@ const DashboardPage = () => {
                       {activeView === 'public' ? 'Public' : 'Private'}
                     </span>
                   </div>
+                  {canUpdateRelayGrid(job) && (
+                    <div className="absolute top-3 right-3 flex items-center gap-2 bg-black/60 px-2 py-1 rounded-full text-[11px] text-white/80">
+                      <span className="uppercase tracking-wide text-white/60">Grid</span>
+                      <div className="inline-flex items-center rounded-full bg-white/10 p-0.5 border border-white/10">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRelayGridUpdate(job, 4);
+                          }}
+                          disabled={updatingRelayId === job.relay_session_id}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold transition ${
+                            Number(job.relay_max_steps || 6) === 4
+                              ? 'bg-white text-slate-900'
+                              : 'text-white/80 hover:text-white'
+                          }`}
+                        >
+                          4
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRelayGridUpdate(job, 6);
+                          }}
+                          disabled={updatingRelayId === job.relay_session_id}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold transition ${
+                            Number(job.relay_max_steps || 6) === 6
+                              ? 'bg-white text-slate-900'
+                              : 'text-white/80 hover:text-white'
+                          }`}
+                        >
+                          6
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="absolute bottom-3 right-3 flex items-center text-xs text-white/80 bg-black/50 px-3 py-1 rounded-full">
                     <Calendar size={14} className="mr-1" />
