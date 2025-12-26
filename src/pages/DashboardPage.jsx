@@ -5,8 +5,10 @@ import { generationService } from '../services/generation.service';
 import { relayService } from '../services/relay.service';
 import Navbar from '../components/layout/Navbar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import Modal from '../components/common/Modal';
 import { Calendar, Trash2 } from 'lucide-react';
 import { formatDate } from '../utils/helpers';
+import { buildReportIssueLink, getFriendlyError } from '../utils/errorHandling';
 import api from '../services/api';
 
 const DashboardPage = () => {
@@ -17,6 +19,16 @@ const DashboardPage = () => {
   const [deletingPostId, setDeletingPostId] = useState(null);
   const [updatingRelayId, setUpdatingRelayId] = useState(null);
   const [activeView, setActiveView] = useState('public'); // public | private
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    showCancel: false,
+    onConfirm: null,
+    error: null,
+  });
 
   useEffect(() => {
     loadHistory(activeView);
@@ -47,17 +59,51 @@ const DashboardPage = () => {
     return cleaned;
   };
 
+  const closeModal = () => {
+    setModalState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const openAlert = (title, message, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      showCancel: false,
+      onConfirm: null,
+      error,
+    });
+  };
+
+  const openConfirm = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'Confirm',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm,
+      error,
+    });
+  };
+
   const handleDeletePost = async (postId) => {
     if (!postId) return;
-    const ok = window.confirm('Remove this from the gallery? This is allowed only before others join your relay.');
-    if (!ok) return;
     try {
       setDeletingPostId(postId);
       await api.delete(`/posts/${postId}`);
       await loadHistory(activeView);
     } catch (err) {
       console.error('Failed to remove post', err);
-      alert(err.response?.data?.error || 'Failed to remove this post.');
+      const { message } = getFriendlyError(err);
+      const raw = err.response?.data?.error || '';
+      if (raw.toLowerCase().includes('later relay step')) {
+        openAlert('Cannot Unpublish', 'Someone already continued this relay. You can’t unpublish this panel.', err);
+      } else {
+        openAlert('Failed to Unpublish', message, err);
+      }
     } finally {
       setDeletingPostId(null);
     }
@@ -65,14 +111,13 @@ const DashboardPage = () => {
 
   const handleRemoveEntry = async (jobId) => {
     if (!jobId) return;
-    const ok = window.confirm('Remove this entry from your dashboard?');
-    if (!ok) return;
     try {
       await generationService.hideJob(jobId);
       await loadHistory(activeView);
     } catch (err) {
       console.error('Failed to remove history entry', err);
-      alert(err.response?.data?.error || 'Failed to remove this entry.');
+      const { message } = getFriendlyError(err);
+      openAlert('Failed to Remove', message, err);
     }
   };
 
@@ -84,6 +129,7 @@ const DashboardPage = () => {
 
   const canUpdateRelayGrid = (job) => {
     if (!user) return false;
+    if (activeView !== 'public') return false;
     const stepNumber = Number(job.step_number || 0);
     return (
       !!job.relay_session_id &&
@@ -102,7 +148,8 @@ const DashboardPage = () => {
       await loadHistory(activeView);
     } catch (err) {
       console.error('Failed to update relay grid', err);
-      alert(err.response?.data?.error || 'Failed to update relay grid.');
+      const { message } = getFriendlyError(err);
+      openAlert('Update Failed', message, err);
     } finally {
       setUpdatingRelayId(null);
     }
@@ -222,45 +269,89 @@ const DashboardPage = () => {
                     </div>
                   )}
 
-                  <div className="absolute bottom-3 right-3 flex items-center text-xs text-white/80 bg-black/50 px-3 py-1 rounded-full">
-                    <Calendar size={14} className="mr-1" />
-                    {formatDate(job.created_at)}
-                  </div>
-
-                  <div className="absolute bottom-3 left-3 flex flex-col gap-2">
-                    {(!job.post_id || job.moderation_status === 'deleted' || job.status === 'failed') ? (
+                  <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-1">
+                    <div className="flex items-end justify-between">
+                      <div className="flex flex-col gap-2">
+                    {activeView === 'private' || !job.post_id || job.moderation_status === 'deleted' || job.status === 'failed' ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleRemoveEntry(job.id);
+                          openConfirm(
+                            'Remove from Dashboard',
+                            'Remove this entry from your dashboard?',
+                            () => handleRemoveEntry(job.id)
+                          );
                         }}
                         className="flex items-center gap-1 text-red-200 hover:text-red-100 text-xs bg-black/40 px-3 py-1 rounded-full"
                       >
                         <Trash2 size={14} />
                         Remove
-                      </button>
-                    ) : null}
-                    {job.post_id && activeView === 'public' && job.moderation_status !== 'deleted' ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePost(job.post_id);
-                        }}
-                        disabled={deletingPostId === job.post_id}
-                        className="flex items-center gap-1 text-red-200 hover:text-red-100 text-xs bg-black/40 px-3 py-1 rounded-full"
-                      >
-                        <Trash2 size={14} />
-                        {deletingPostId === job.post_id ? 'Removing...' : 'Remove from gallery'}
-                      </button>
-                    ) : null}
+                          </button>
+                        ) : null}
+                        {job.post_id && activeView === 'public' && job.moderation_status !== 'deleted' ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openConfirm(
+                              'Unpublish Image',
+                              'Remove from Public Gallery? It will move to Private.\nOnly if no one continued.',
+                              () => handleDeletePost(job.post_id)
+                            );
+                          }}
+                          disabled={deletingPostId === job.post_id}
+                          className="flex items-center gap-1 text-red-200 hover:text-red-100 text-xs bg-black/40 px-3 py-1 rounded-full"
+                        >
+                          <Trash2 size={14} />
+                          {deletingPostId === job.post_id ? 'Unpublishing...' : 'Unpublish (move to Private)'}
+                        </button>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center text-xs text-white/80 bg-black/50 px-3 py-1 rounded-full">
+                        <Calendar size={14} className="mr-1" />
+                        {formatDate(job.created_at)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
       </div>
     </div>
+    <Modal isOpen={modalState.isOpen} onClose={closeModal} title={modalState.title} size="sm">
+      <p className="text-white/90 text-sm whitespace-pre-line">{modalState.message}</p>
+      <div className="mt-6 flex justify-end gap-3">
+        {modalState.error && (
+          <a
+            href={buildReportIssueLink(modalState.error, user?.id)}
+            className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+          >
+            Report issue
+          </a>
+        )}
+        {modalState.showCancel && (
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+          >
+            {modalState.cancelLabel}
+          </button>
+        )}
+        <button
+          onClick={async () => {
+            const confirmAction = modalState.onConfirm;
+            closeModal();
+            if (typeof confirmAction === 'function') {
+              await confirmAction();
+            }
+          }}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+        >
+          {modalState.confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  </div>
   );
 };
 

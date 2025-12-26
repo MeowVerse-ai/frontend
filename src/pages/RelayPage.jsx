@@ -6,6 +6,8 @@ import { uploadService } from '../services/upload.service';
 import { generationService } from '../services/generation.service';
 import Button from '../components/common/Button';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import Modal from '../components/common/Modal';
+import { buildReportIssueLink, getFriendlyError } from '../utils/errorHandling';
 import { Image as ImageIcon, Sparkles, X, Timer, ArrowRight, Check, Trash2 } from 'lucide-react';
 
 const MAX_STEPS = 6;
@@ -26,6 +28,16 @@ const RelayPage = () => {
   const [generating, setGenerating] = useState(false);
   const [jobId, setJobId] = useState(null);
   const pollRef = useRef(null);
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    showCancel: false,
+    onConfirm: null,
+    error: null,
+  });
 
   const stepsCompleted = steps.filter((s) => s.status === 'completed').length;
   const hasReachedLimit = stepsCompleted >= MAX_STEPS || (session && session.status === 'closed');
@@ -37,6 +49,36 @@ const RelayPage = () => {
       }
     };
   }, []);
+
+  const closeModal = () => {
+    setModalState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const openAlert = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      showCancel: false,
+      onConfirm: onConfirm || null,
+      error: error || null,
+    });
+  };
+
+  const openConfirm = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'Confirm',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm,
+      error: error || null,
+    });
+  };
 
   const ensureSession = async () => {
     if (session) return session;
@@ -61,7 +103,7 @@ const RelayPage = () => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('Image too large, max 10MB');
+      openAlert('Image Too Large', 'Image too large, max 10MB.');
       return;
     }
 
@@ -71,7 +113,7 @@ const RelayPage = () => {
       setInputMediaId(uploadResult.mediaId || uploadResult.id);
     } catch (error) {
       console.error('Upload failed', error);
-      alert('Upload failed, please retry');
+      openAlert('Upload Failed', 'Upload failed, please retry.');
       setInputPreview(null);
       setInputMediaId(null);
     }
@@ -93,7 +135,7 @@ const RelayPage = () => {
           clearInterval(pollRef.current);
           setJobId(null);
           setGenerating(false);
-          alert('Generation failed, please retry.');
+          openAlert('Generation Failed', 'Generation failed, please retry.');
         }
       } catch (error) {
         clearInterval(pollRef.current);
@@ -110,11 +152,11 @@ const RelayPage = () => {
       return;
     }
     if (!prompt.trim()) {
-      alert('Please enter a prompt');
+      openAlert('Missing Prompt', 'Please enter a prompt.');
       return;
     }
     if (hasReachedLimit) {
-      alert('This relay is closed');
+      openAlert('Relay Closed', 'This relay is closed.');
       return;
     }
 
@@ -139,7 +181,8 @@ const RelayPage = () => {
       setPrompt('');
     } catch (error) {
       console.error('Failed to start relay step', error);
-      alert(error.response?.data?.error || 'Generation failed, please try again.');
+      const { message } = getFriendlyError(error);
+      openAlert('Generation Failed', message, null, error);
       setGenerating(false);
     }
   };
@@ -155,19 +198,22 @@ const RelayPage = () => {
       setGeneratedImage(null);
     } catch (error) {
       console.error('Publish failed', error);
-      alert(error.response?.data?.error || 'Publish failed, please try again.');
+      const { message } = getFriendlyError(error);
+      openAlert('Publish Failed', message, null, error);
     }
   };
 
   const handleDeleteDraft = async (draftId) => {
-    if (!window.confirm('Delete this draft?')) return;
-    try {
-      await relayService.deleteDraft(draftId);
-      setDrafts((prev) => prev.filter((d) => d.id !== draftId));
-    } catch (error) {
-      console.error('Delete draft failed', error);
-      alert(error.response?.data?.error || 'Delete failed');
-    }
+    openConfirm('Delete Draft', 'Delete this draft?', async () => {
+      try {
+        await relayService.deleteDraft(draftId);
+        setDrafts((prev) => prev.filter((d) => d.id !== draftId));
+      } catch (error) {
+        console.error('Delete draft failed', error);
+        const { message } = getFriendlyError(error);
+        openAlert('Delete Failed', message, null, error);
+      }
+    });
   };
 
   const handleRemoveInput = () => {
@@ -178,6 +224,7 @@ const RelayPage = () => {
   const progressPercent = Math.min((stepsCompleted / MAX_STEPS) * 100, 100);
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-24 pb-12">
       <div className="max-w-5xl mx-auto px-4">
         <div className="flex flex-col gap-4 mb-8">
@@ -403,6 +450,40 @@ const RelayPage = () => {
         </div>
       </div>
     </div>
+    <Modal isOpen={modalState.isOpen} onClose={closeModal} title={modalState.title} size="sm">
+      <p className="text-white/90 text-sm whitespace-pre-line">{modalState.message}</p>
+      <div className="mt-6 flex justify-end gap-3">
+        {modalState.error && (
+          <a
+            href={buildReportIssueLink(modalState.error, user?.id)}
+            className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+          >
+            Report issue
+          </a>
+        )}
+        {modalState.showCancel && (
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+          >
+            {modalState.cancelLabel}
+          </button>
+        )}
+        <button
+          onClick={async () => {
+            const confirmAction = modalState.onConfirm;
+            closeModal();
+            if (typeof confirmAction === 'function') {
+              await confirmAction();
+            }
+          }}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+        >
+          {modalState.confirmLabel}
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 };
 

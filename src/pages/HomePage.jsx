@@ -6,6 +6,8 @@ import { relayService } from '../services/relay.service';
 import { uploadService } from '../services/upload.service';
 import { formatDate, formatNumber } from '../utils/helpers';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import Modal from '../components/common/Modal';
+import { buildReportIssueLink, getFriendlyError } from '../utils/errorHandling';
 import { Wand2, Image as ImageIcon } from 'lucide-react';
 import { generationService } from '../services/generation.service';
 
@@ -47,6 +49,16 @@ const HomePage = () => {
   const [maxSteps, setMaxSteps] = useState(6);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [isUpdatingMaxSteps, setIsUpdatingMaxSteps] = useState(false);
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    showCancel: false,
+    onConfirm: null,
+    error: null,
+  });
 
   const clearAttachment = () => {
     if (attachedPreview && attachedPreview.startsWith('blob:')) {
@@ -245,6 +257,23 @@ const HomePage = () => {
     }, 2500);
   };
 
+  const closeModal = () => {
+    setModalState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const openAlert = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      showCancel: false,
+      onConfirm: onConfirm || null,
+      error: error || null,
+    });
+  };
+
   const handleMaxStepsChange = async (nextSteps) => {
     if (nextSteps === maxSteps) return;
     const prevSteps = maxSteps;
@@ -260,7 +289,8 @@ const HomePage = () => {
       await loadPosts(true);
     } catch (error) {
       setMaxSteps(prevSteps);
-      alert(error.response?.data?.error || 'Failed to update relay size.');
+      const { message } = getFriendlyError(error);
+      openAlert('Update Failed', message, null, error);
     } finally {
       setIsUpdatingMaxSteps(false);
     }
@@ -291,7 +321,8 @@ const HomePage = () => {
       setShowPreview(false);
     } catch (err) {
       console.error('Publish failed', err);
-      alert(err.response?.data?.error || 'Failed to publish this image, please try again.');
+      const { message } = getFriendlyError(err);
+      openAlert('Publish Failed', message, null, err);
     } finally {
       setIsPublishing(false);
     }
@@ -320,7 +351,8 @@ const HomePage = () => {
       setShowPreview(false);
     } catch (err) {
       console.error('Save to private failed', err);
-      alert(err.response?.data?.error || 'Failed to save this image, please try again.');
+      const { message } = getFriendlyError(err);
+      openAlert('Save Failed', message, null, err);
     } finally {
       setIsPublishing(false);
     }
@@ -331,11 +363,11 @@ const HomePage = () => {
     if (!file) return;
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Only JPG, PNG, WebP, HEIC, and HEIF are supported.');
+      openAlert('Unsupported Format', 'Only JPG, PNG, WebP, HEIC, and HEIF are supported.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image too large (max 5MB).');
+      openAlert('Image Too Large', 'Image too large (max 5MB).');
       return;
     }
     if (attachedPreview && attachedPreview.startsWith('blob:')) {
@@ -356,7 +388,7 @@ const HomePage = () => {
     const promptToUse = ((typeof overridePrompt === 'string' ? overridePrompt : prompt) || '').trim();
     if (!promptToUse) {
       setIsExpanded(true);
-      alert('Please enter a prompt');
+      openAlert('Missing Prompt', 'Please enter a prompt.');
       return;
     }
     if (!user) {
@@ -398,7 +430,8 @@ const HomePage = () => {
           }
         } catch (uploadError) {
           console.error('Upload failed', uploadError);
-          alert('Upload failed, please retry.');
+          const { message } = getFriendlyError(uploadError);
+          openAlert('Upload Failed', message, null, uploadError);
           setUploading(false);
           setCreatingDraft(false);
           setIsGenerating(false);
@@ -425,10 +458,11 @@ const HomePage = () => {
       const message = error.response?.data?.error || 'Generation failed, please try again.';
       if (status === 429) {
         setGenError('Too many requests. Please wait a moment and try again.');
-        alert('You are sending requests too quickly. Please wait a moment and try again.');
+        openAlert('Too Many Requests', 'Please wait a moment and try again.', null, error);
       } else {
         setGenError(message);
-        alert(message);
+        const { message: friendly } = getFriendlyError(error);
+        openAlert('Generation Failed', friendly, null, error);
       }
       setIsExpanded(true);
     } finally {
@@ -890,7 +924,7 @@ const HomePage = () => {
                           currentResult.title ||
                           '';
                         if (!fallbackPrompt) {
-                          alert('Please enter a prompt');
+                          openAlert('Missing Prompt', 'Please enter a prompt.');
                           return;
                         }
                         handleCreateDraft(fallbackPrompt, true);
@@ -945,6 +979,39 @@ const HomePage = () => {
           </div>
         </div>
       )}
+      <Modal isOpen={modalState.isOpen} onClose={closeModal} title={modalState.title} size="sm">
+        <p className="text-white/90 text-sm whitespace-pre-line">{modalState.message}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          {modalState.error && (
+            <a
+              href={buildReportIssueLink(modalState.error, user?.id)}
+              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+            >
+              Report issue
+            </a>
+          )}
+          {modalState.showCancel && (
+            <button
+              onClick={closeModal}
+              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+            >
+              {modalState.cancelLabel}
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              const confirmAction = modalState.onConfirm;
+              closeModal();
+              if (typeof confirmAction === 'function') {
+                await confirmAction();
+              }
+            }}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+          >
+            {modalState.confirmLabel}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 };

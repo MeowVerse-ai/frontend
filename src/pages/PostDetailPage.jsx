@@ -7,6 +7,8 @@ import { formatNumber, formatDate } from '../utils/helpers';
 import { relayService } from '../services/relay.service';
 import { useAuth } from '../context/AuthContext';
 import { generationService } from '../services/generation.service';
+import Modal from '../components/common/Modal';
+import { buildReportIssueLink, getFriendlyError } from '../utils/errorHandling';
 import api from '../services/api';
 
 const stripSystemPrompt = (text = '') => {
@@ -47,6 +49,16 @@ const PostDetailPage = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [viewTracked, setViewTracked] = useState(false);
   const [updateNotice, setUpdateNotice] = useState(false);
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    showCancel: false,
+    onConfirm: null,
+    error: null,
+  });
 
   useEffect(() => {
     loadPost();
@@ -67,6 +79,37 @@ const PostDetailPage = () => {
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
+
+  const closeModal = () => {
+    setModalState((prev) => ({ ...prev, isOpen: false, onConfirm: null }));
+  };
+
+  const openAlert = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: 'Cancel',
+      showCancel: false,
+      onConfirm: onConfirm || null,
+      error: error || null,
+    });
+  };
+
+  const openConfirm = (title, message, onConfirm, error) => {
+    setModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'Confirm',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm,
+      error: error || null,
+    });
+  };
+
 
   const handleMainTouchStart = (e, widthGetter) => {
     if (e.touches && e.touches.length > 0) {
@@ -188,8 +231,7 @@ const PostDetailPage = () => {
 
   const handleLike = async () => {
     if (!user) {
-      alert('Please login to like posts.');
-      navigate('/login');
+      openAlert('Login Required', 'Please login to like posts.', () => navigate('/login'));
       return;
     }
     try {
@@ -230,21 +272,20 @@ const PostDetailPage = () => {
 
   const handleRelayDraft = async (promptText) => {
     if (!user) {
-      alert('Please login to create a relay step.');
-      navigate('/login');
+      openAlert('Login Required', 'Please login to create a relay step.', () => navigate('/login'));
       return;
     }
     setLockMessage('');
     if (!promptText.trim()) {
-      alert('Please enter a prompt');
+      openAlert('Missing Prompt', 'Please enter a prompt.');
       return;
     }
     if (!post?.relay_session_id) {
-      alert('This post is not linked to a relay session.');
+      openAlert('Relay Unavailable', 'This post is not linked to a relay session.');
       return;
     }
     if (!lastStepMediaId) {
-      alert('No reference image found for this relay.');
+      openAlert('Relay Unavailable', 'No reference image found for this relay.');
       return;
     }
     if (isComplete) return;
@@ -266,8 +307,16 @@ const PostDetailPage = () => {
       console.error('Failed to create relay draft:', error);
       const status = error.response?.status;
       const message = error.response?.data?.error || 'Generation failed, please try again.';
-      if (status === 409) {
-        const lowerMsg = message.toLowerCase();
+      const lowerMsg = message.toLowerCase();
+      if (lowerMsg.includes('panel you selected was removed')) {
+        const notice = 'The panel you selected was removed. Please refresh and try another one.';
+        setLockMessage(notice);
+        openAlert('Relay Unavailable', notice, null, error);
+      } else if (lowerMsg.includes('first panel was removed')) {
+        const notice = 'The first panel was removed. This relay is closed.';
+        setLockMessage(notice);
+        openAlert('Relay Closed', notice, null, error);
+      } else if (status === 409) {
         setLockMessage(
           message.includes('cooldown') ||
           lowerMsg.includes('wait 6 hours') ||
@@ -278,10 +327,11 @@ const PostDetailPage = () => {
       } else if (status === 429) {
         setLockMessage('Too many requests. Please wait a moment before trying again.');
         setGenError('Too many requests. Please wait and retry.');
-        alert('You are sending requests too quickly. Please wait a moment and try again.');
+        openAlert('Too Many Requests', 'Please wait a moment and try again.', null, error);
       } else {
         setLockMessage('');
-        alert(message);
+        const { message: friendly } = getFriendlyError(error);
+        openAlert('Generation Failed', friendly, null, error);
       }
       // Ensure UI stops showing "Generating" if parent already set it
       setIsGenerating(false);
@@ -415,14 +465,14 @@ const PostDetailPage = () => {
   const shareToWeChat = () => {
     navigator.clipboard
       .writeText(shareText)
-      .then(() => alert('Copied share text for WeChat. Paste into chat.'))
+      .then(() => openAlert('Copied', 'Copied share text for WeChat. Paste into chat.'))
       .catch((err) => console.error('WeChat copy failed', err));
   };
 
   const shareToXHS = () => {
     navigator.clipboard
       .writeText(shareText)
-      .then(() => alert('Copied share text for XiaoHongShu. Paste into your post.'))
+      .then(() => openAlert('Copied', 'Copied share text for XiaoHongShu. Paste into your post.'))
       .catch((err) => console.error('XHS copy failed', err));
   };
 
@@ -431,22 +481,28 @@ const PostDetailPage = () => {
 
   const handleDelete = async () => {
     if (!post) return;
-    const confirmDelete = window.confirm(
-      'Remove this from the gallery? This is only allowed before others join the relay.'
+    openConfirm(
+      'Unpublish Image',
+      'Remove from Public Gallery? It will move to Private.\nOnly if no one continued.',
+      async () => {
+        try {
+          setIsDeleting(true);
+          await api.delete(`/posts/${post.id}`);
+          openAlert('Unpublished', 'Unpublished. It moved to Private.', () => navigate('/'));
+        } catch (err) {
+          console.error('Delete failed', err);
+          const raw = err.response?.data?.error || '';
+          if (raw.toLowerCase().includes('later relay step')) {
+            openAlert('Cannot Unpublish', 'Someone already continued this relay. You can’t unpublish this panel.', null, err);
+          } else {
+            const { message } = getFriendlyError(err);
+            openAlert('Failed to Unpublish', message, null, err);
+          }
+        } finally {
+          setIsDeleting(false);
+        }
+      }
     );
-    if (!confirmDelete) return;
-
-    try {
-      setIsDeleting(true);
-      await api.delete(`/posts/${post.id}`);
-      alert('Removed from gallery.');
-      navigate('/');
-    } catch (err) {
-      console.error('Delete failed', err);
-      alert(err.response?.data?.error || 'Failed to remove post.');
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   const startJobPolling = (jobId, draftId, sessionId) => {
@@ -566,12 +622,11 @@ const PostDetailPage = () => {
 
   const runInlineRelay = async (promptText, stayInModal = false) => {
     if (!promptText.trim()) {
-      alert('Please enter a prompt');
+      openAlert('Missing Prompt', 'Please enter a prompt.');
       return;
     }
     if (!user) {
-      alert('Please login to continue the relay.');
-      navigate('/login');
+      openAlert('Login Required', 'Please login to continue the relay.', () => navigate('/login'));
       return;
     }
     if (!lastStepMediaId || isComplete) return;
@@ -648,12 +703,13 @@ const PostDetailPage = () => {
       console.error('Publish action failed', err);
       const message = err?.response?.data?.error || 'Failed to publish this step.';
       if (err?.response?.status === 409) {
-        alert(`${message}\nPlease regenerate from the latest image.`);
+        openAlert('Relay Updated', `${message}\nPlease regenerate from the latest image.`, null, err);
         setActiveDraft(null);
         setShowPreview(false);
         await loadPost();
       } else {
-        alert(message);
+        const { message: friendly } = getFriendlyError(err);
+        openAlert('Publish Failed', friendly, null, err);
       }
     } finally {
       setIsPublishing(false);
@@ -1159,9 +1215,41 @@ const PostDetailPage = () => {
               </div>
             </div>
           </div>
-          )}
         </div>
       )}
+      <Modal isOpen={modalState.isOpen} onClose={closeModal} title={modalState.title} size="sm">
+        <p className="text-white/90 text-sm whitespace-pre-line">{modalState.message}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          {modalState.error && (
+            <a
+              href={buildReportIssueLink(modalState.error, user?.id)}
+              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+            >
+              Report issue
+            </a>
+          )}
+          {modalState.showCancel && (
+            <button
+              onClick={closeModal}
+              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition"
+            >
+              {modalState.cancelLabel}
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              const confirmAction = modalState.onConfirm;
+              closeModal();
+              if (typeof confirmAction === 'function') {
+                await confirmAction();
+              }
+            }}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold shadow"
+          >
+            {modalState.confirmLabel}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 };

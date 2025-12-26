@@ -171,14 +171,13 @@ const MeowStarsPage = () => {
                 topCreators.map((creator) => (
                   <div
                     key={creator.user_id}
-                    onClick={() => navigate(`/profile/${creator.user_id}`)}
-                    className="group relative cursor-pointer"
+                    className="relative"
                   >
                     {/* Glow effect */}
-                    <div className={`absolute -inset-0.5 bg-gradient-to-r ${getMedalColor(Number(creator.rank))} rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-300`}></div>
+                    <div className={`absolute -inset-0.5 bg-gradient-to-r ${getMedalColor(Number(creator.rank))} rounded-2xl blur opacity-30 transition duration-300`}></div>
 
                     {/* Card content */}
-                    <div className="relative bg-slate-800/90 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 group-hover:border-purple-500/40 transition-all">
+                    <div className="relative bg-slate-800/90 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 transition-all">
                       <div className="flex items-center gap-4">
                         {/* Rank */}
                         <div className="flex-shrink-0">
@@ -208,10 +207,6 @@ const MeowStarsPage = () => {
                           {getTrendIcon('up')}
                         </div>
 
-                        {/* View profile hint */}
-                        <div className="flex-shrink-0 hidden group-hover:block">
-                          <span className="text-sm text-purple-400 font-semibold">View Profile →</span>
-                        </div>
                       </div>
                     </div>
                   </div>
